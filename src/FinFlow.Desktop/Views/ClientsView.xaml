@@ -1,0 +1,107 @@
+<UserControl x:Class="FinFlow.Desktop.Views.ClientsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="400" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top">
+                    <TextBlock Text="Клиенты банка" FontSize="18" FontWeight="Bold" />
+                    <TextBlock Text="Поиск по наименованию, УНП или номеру документа"
+                               Style="{StaticResource SectionCaption}" Margin="0,4,0,8" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBox Width="250" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="Найти" Command="{Binding SearchCommand}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="◀" Command="{Binding PrevPageCommand}" Style="{StaticResource SecondaryButton}" Padding="10,4" />
+                        <Button Content="▶" Command="{Binding NextPageCommand}" Style="{StaticResource SecondaryButton}" Padding="10,4" />
+                        <TextBlock Text="{Binding PageCaption}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="4,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+                <DataGrid ItemsSource="{Binding Clients}" SelectedItem="{Binding SelectedClient}"
+                          AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Клиент" Binding="{Binding Name}" Width="*" />
+                        <DataGridTextColumn Header="Тип" Binding="{Binding TypeText}" Width="80" />
+                        <DataGridTextColumn Header="Риск" Binding="{Binding KycRiskLevel}" Width="60" />
+                        <DataGridTextColumn Header="Счетов" Binding="{Binding AccountsCount}" Width="60" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Column="1" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding ClientCaption}" FontSize="18" FontWeight="Bold" />
+                        <TextBlock Text="{Binding ClientInfo}" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Открыть счёт в карточке" Command="{Binding OpenAccountCommand}" />
+                            <Button Content="Синхронизация с МСИ" Command="{Binding MsiSyncCommand}" Style="{StaticResource SecondaryButton}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Text="СЧЕТА КЛИЕНТА" Style="{StaticResource SectionCaption}" />
+                        <DataGrid ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}"
+                                  AutoGenerateColumns="False" IsReadOnly="True" Height="150" HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Номер" Binding="{Binding Number}" Width="*" />
+                                <DataGridTextColumn Header="Валюта" Binding="{Binding Currency}" Width="70" />
+                                <DataGridTextColumn Header="Остаток" Binding="{Binding Balance, StringFormat={}{0:N2}}" Width="110" />
+                                <DataGridTextColumn Header="Доступно" Binding="{Binding AvailableBalance, StringFormat={}{0:N2}}" Width="110" />
+                                <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="100" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Text="АНКЕТА ПОД/ФТ (ТРЕБОВАНИЕ 2)" Style="{StaticResource SectionCaption}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Уровень риска" Margin="0,0,8,0" />
+                            <ComboBox Width="130" ItemsSource="{Binding RiskLevels}" SelectedItem="{Binding KycRiskLevel}" />
+                            <TextBox Width="360" Text="{Binding KycNotes, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Content="Сохранить" Command="{Binding SaveKycCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Text="ПРЕДСТАВИТЕЛИ КЛИЕНТА" Style="{StaticResource SectionCaption}" />
+                        <DataGrid ItemsSource="{Binding Representatives}" AutoGenerateColumns="False" IsReadOnly="True"
+                                  Height="120" HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="ФИО" Binding="{Binding FullName}" Width="*" />
+                                <DataGridTextColumn Header="Документ" Binding="{Binding IdNumber}" Width="130" />
+                                <DataGridTextColumn Header="Полномочия" Binding="{Binding Authority}" Width="160" />
+                                <DataGridTextColumn Header="Действует" Binding="{Binding IsValid}" Width="90" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <TextBox Width="180" Text="{Binding RepFullName, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBox Width="120" Text="{Binding RepIdNumber, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBox Width="150" Text="{Binding RepAuthority, UpdateSourceTrigger=PropertyChanged}" />
+                            <DatePicker Width="120" SelectedDate="{Binding RepValidFrom}" />
+                            <DatePicker Width="120" SelectedDate="{Binding RepValidTo}" />
+                            <Button Content="Добавить" Command="{Binding AddRepresentativeCommand}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource DangerBrush}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

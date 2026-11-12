@@ -1,0 +1,102 @@
+<UserControl x:Class="FinFlow.Desktop.Views.AdminView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Content="Обновить данные" Command="{Binding RefreshCommand}" />
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource DangerBrush}" FontSize="12" Margin="10,0,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <TabControl Grid.Row="1">
+            <TabItem Header="Параметры (требование 14)">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="320" />
+                    </Grid.ColumnDefinitions>
+                    <DataGrid Grid.Column="0" ItemsSource="{Binding Parameters}" SelectedItem="{Binding SelectedParameter}"
+                              AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Код" Binding="{Binding Code}" Width="150" />
+                            <DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="*" />
+                            <DataGridTextColumn Header="Значение" Binding="{Binding Value, StringFormat={}{0:N4}}" Width="110" />
+                            <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="80" />
+                            <DataGridTextColumn Header="Действует с" Binding="{Binding ValidFrom, StringFormat={}{0:dd.MM.yyyy}}" Width="110" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <Border Grid.Column="1" Style="{StaticResource CardBorder}" Margin="12,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="НОВОЕ ЗНАЧЕНИЕ ПАРАМЕТРА" Style="{StaticResource SectionCaption}" />
+                            <TextBlock Text="{Binding SelectedParameter.Code}" FontWeight="SemiBold" Margin="0,0,0,10" />
+                            <TextBlock Text="Наименование" Style="{StaticResource SectionCaption}" />
+                            <TextBox Text="{Binding ParameterName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+                            <TextBlock Text="Значение" Style="{StaticResource SectionCaption}" />
+                            <TextBox Text="{Binding ParameterValueText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                            <Button Content="Сохранить значение" Command="{Binding SetParameterCommand}" HorizontalAlignment="Left" />
+                            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,0"
+                                       Text="Изменение оформляется новой записью с датой действия: история значений сохраняется." />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Пользователи (требование 16)">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="320" />
+                    </Grid.ColumnDefinitions>
+                    <DataGrid Grid.Column="0" ItemsSource="{Binding Users}" SelectedItem="{Binding SelectedUser}"
+                              AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Логин" Binding="{Binding Login}" Width="140" />
+                            <DataGridTextColumn Header="ФИО" Binding="{Binding FullName}" Width="*" />
+                            <DataGridTextColumn Header="Роли" Binding="{Binding RoleNames, Converter={StaticResource Join}}" Width="220" />
+                            <DataGridTextColumn Header="2ФА" Binding="{Binding TwoFactorEnabled}" Width="70" />
+                            <DataGridTextColumn Header="Блокирован" Binding="{Binding IsBlocked}" Width="100" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <Border Grid.Column="1" Style="{StaticResource CardBorder}" Margin="12,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="НОВЫЙ ПОЛЬЗОВАТЕЛЬ" Style="{StaticResource SectionCaption}" />
+                            <TextBlock Text="Логин" Style="{StaticResource SectionCaption}" />
+                            <TextBox Text="{Binding NewLogin, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                            <TextBlock Text="ФИО" Style="{StaticResource SectionCaption}" />
+                            <TextBox Text="{Binding NewFullName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                            <TextBlock Text="Пароль" Style="{StaticResource SectionCaption}" />
+                            <TextBox Text="{Binding NewPassword, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                            <TextBlock Text="Роль" Style="{StaticResource SectionCaption}" />
+                            <ComboBox ItemsSource="{Binding Roles}" SelectedItem="{Binding NewRole}" Margin="0,0,0,8" />
+                            <CheckBox Content="Требовать второй фактор" IsChecked="{Binding NewTwoFactor}" Margin="0,0,0,10" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Создать" Command="{Binding CreateUserCommand}" />
+                                <Button Content="Блокировать / разблокировать" Command="{Binding BlockUserCommand}" Style="{StaticResource SecondaryButton}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Журнал аудита (требование 23)">
+                <DataGrid ItemsSource="{Binding Audit}" AutoGenerateColumns="False" IsReadOnly="True" Margin="8"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Время" Binding="{Binding At, StringFormat={}{0:dd.MM.yyyy HH:mm:ss}}" Width="160" />
+                        <DataGridTextColumn Header="Пользователь" Binding="{Binding UserLogin}" Width="130" />
+                        <DataGridTextColumn Header="Действие" Binding="{Binding Action}" Width="190" />
+                        <DataGridTextColumn Header="Объект" Binding="{Binding EntityName}" Width="160" />
+                        <DataGridTextColumn Header="Идентификатор" Binding="{Binding EntityId}" Width="260" />
+                        <DataGridTextColumn Header="Новое значение" Binding="{Binding NewValue}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

@@ -72,7 +72,7 @@ public class TaxService
         return withholding;
     }
 
-    public async Task<TaxReportDto> ReportAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+    public async Task<TaxReportDto> ReportAsync(DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default)
     {
         var rows = await (
             from withholding in _db.TaxWithholdings
@@ -80,7 +80,7 @@ public class TaxService
             join contract in _db.Contracts on withholding.ContractId equals contract.Id
             join client in _db.Clients on contract.ClientId equals client.Id
             join account in _db.Accounts on contract.AccountId equals account.Id
-            where accrual.AccrualDate >= from && accrual.AccrualDate <= to
+            where accrual.AccrualDate >= fromDate && accrual.AccrualDate <= toDate
             orderby accrual.AccrualDate descending
             select new
             {
@@ -96,8 +96,8 @@ public class TaxService
 
         return new TaxReportDto
         {
-            From = from,
-            To = to,
+            From = fromDate,
+            To = toDate,
             TotalAccrued = Money.Round(rows.Sum(r => r.Accrued)),
             TotalTaxable = Money.Round(rows.Sum(r => r.TaxableBase)),
             TotalTax = Money.Round(rows.Sum(r => r.Tax)),

@@ -1,0 +1,42 @@
+<UserControl x:Class="FinFlow.Desktop.Views.DayCloseView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="8">
+        <StackPanel>
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="ОПЕРАЦИОННЫЙ ДЕНЬ" Style="{StaticResource SectionCaption}" />
+                    <TextBlock Text="{Binding TodayCaption}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding TotalsCaption}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ErrorCaption}" Margin="0,6,0,0" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" FontSize="12" />
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="Запустить закрытие дня" Command="{Binding StartCommand}" />
+                        <Button Content="Следующий этап" Command="{Binding ContinueCommand}" Style="{StaticResource SecondaryButton}" />
+                        <Button Content="Сверка" Command="{Binding ReconcileCommand}" Style="{StaticResource SecondaryButton}" />
+                        <Button Content="Обновить" Command="{Binding LoadCommand}" Style="{StaticResource SecondaryButton}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding ReconciliationCaption}" Margin="0,12,0,0" TextWrapping="Wrap" FontSize="12" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="ИСТОРИЯ ЗАКРЫТИЙ (ТРЕБОВАНИЕ 11)" Style="{StaticResource SectionCaption}" />
+                    <DataGrid ItemsSource="{Binding History}" AutoGenerateColumns="False" IsReadOnly="True" Height="320"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Дата" Binding="{Binding Date, StringFormat={}{0:dd.MM.yyyy}}" Width="100" />
+                            <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="100" />
+                            <DataGridTextColumn Header="Этап" Binding="{Binding StageText}" Width="*" />
+                            <DataGridTextColumn Header="Начислено" Binding="{Binding InterestAccrued, StringFormat={}{0:N2}}" Width="110" />
+                            <DataGridTextColumn Header="Налог" Binding="{Binding TaxWithheld, StringFormat={}{0:N2}}" Width="100" />
+                            <DataGridTextColumn Header="Начислений" Binding="{Binding AccrualCount}" Width="90" />
+                            <DataGridTextColumn Header="Проводок" Binding="{Binding PostingCount}" Width="90" />
+                            <DataGridTextColumn Header="Закрыт" Binding="{Binding ClosedAt, StringFormat={}{0:dd.MM.yyyy HH:mm}}" Width="130" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>FinFlow.Desktop</RootNamespace>
+    <AssemblyName>FinFlow.Desktop</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FinFlow.Contracts\FinFlow.Contracts.csproj" />
+  </ItemGroup>
+</Project>

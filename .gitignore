@@ -1,0 +1,19 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+TestResults/
+
+# SQL Server / локальная БД
+*.mdf
+*.ldf
+*.bak
+
+# ОС и редакторы
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

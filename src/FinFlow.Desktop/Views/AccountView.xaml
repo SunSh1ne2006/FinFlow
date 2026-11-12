@@ -1,0 +1,59 @@
+<UserControl x:Class="FinFlow.Desktop.Views.AccountView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="8">
+        <StackPanel>
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="КАРТОЧКА СЧЁТА" Style="{StaticResource SectionCaption}" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Width="300" Text="{Binding NumberSearch, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="Найти" Command="{Binding FindCommand}" />
+                        <Button Content="Обновить" Command="{Binding FindCommand}" Style="{StaticResource SecondaryButton}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Caption}" FontSize="18" FontWeight="Bold" Margin="0,12,0,0" />
+                    <TextBlock Text="{Binding BalanceInfo}" Margin="0,6,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding AvailabilityInfo}" Margin="0,4,0,0" TextWrapping="Wrap" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding ArrestCaption}" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" FontSize="12" />
+                    <TextBlock Text="{Binding ContractInfo}" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="12" />
+                    <TextBlock Text="{Binding NumbersInfo}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="АРЕСТЫ И РЕЗЕРВЫ (ТРЕБОВАНИЯ 1, 3)" Style="{StaticResource SectionCaption}" />
+                    <DataGrid ItemsSource="{Binding Holds}" SelectedItem="{Binding SelectedHold}" AutoGenerateColumns="False"
+                              IsReadOnly="True" Height="180" HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Источник" Binding="{Binding SourceText}" Width="120" />
+                            <DataGridTextColumn Header="Основание" Binding="{Binding BasisNumber}" Width="150" />
+                            <DataGridTextColumn Header="Орган" Binding="{Binding BasisAuthority}" Width="*" />
+                            <DataGridTextColumn Header="Сумма" Binding="{Binding Amount, StringFormat={}{0:N2}}" Width="120" />
+                            <DataGridTextColumn Header="Арест" Binding="{Binding IsArrest}" Width="70" />
+                            <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="100" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock Text="Сумма" Margin="0,0,8,0" />
+                        <TextBox Width="140" Text="{Binding HoldAmountText, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="Основание" Margin="8,0,8,0" />
+                        <TextBox Width="160" Text="{Binding HoldBasisNumber, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox Width="180" Text="{Binding HoldBasisAuthority, UpdateSourceTrigger=PropertyChanged}" />
+                        <CheckBox Content="Арест" IsChecked="{Binding HoldIsArrest}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <Button Content="Зарегистрировать" Command="{Binding AddHoldCommand}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="Снять обеспечение" Command="{Binding ReleaseHoldCommand}" Style="{StaticResource SecondaryButton}" />
+                        <TextBlock Text="Лимит овердрафта" Margin="16,0,8,0" />
+                        <TextBox Width="120" Text="{Binding OverdraftLimitText, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="Изменить лимит" Command="{Binding SetOverdraftCommand}" />
+                        <Button Content="Закрыть счёт" Command="{Binding CloseAccountCommand}" Style="{StaticResource DangerButton}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource DangerBrush}" FontSize="12" Margin="0,10,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -5,7 +5,7 @@ using FinFlow.Api.Common;
 using FinFlow.Application.Abstractions;
 using FinFlow.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -57,15 +57,9 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Токен, полученный в POST /api/auth/login"
     });
 
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
+        { new OpenApiSecuritySchemeReference("Bearer", document), new List<string>() }
     });
 });
 

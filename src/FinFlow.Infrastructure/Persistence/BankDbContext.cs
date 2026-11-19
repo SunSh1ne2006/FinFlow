@@ -60,6 +60,7 @@ public class BankDbContext : DbContext, IBankDbContext
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.IdNumber).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.BirthDate).HasColumnType("date");
             entity.Property(x => x.Country).HasMaxLength(2);
             entity.Property(x => x.Phone).HasMaxLength(50);
             entity.Property(x => x.Email).HasMaxLength(100);

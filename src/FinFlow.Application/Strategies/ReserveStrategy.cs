@@ -1,5 +1,4 @@
 using FinFlow.Domain.Calculators;
-using FinFlow.Domain.Common;
 
 namespace FinFlow.Application.Strategies;
 
@@ -25,5 +24,6 @@ public class P80ReserveStrategy : IReserveStrategy
     public string Name => "Квантиль P80 (нормальное приближение)";
 
     public decimal Reserve(decimal expectedMonetaryValue, decimal standardDeviation) =>
-        Money.Round(expectedMonetaryValue + RiskCalculator.P80Quantile * standardDeviation);
+        decimal.Round(expectedMonetaryValue + RiskCalculator.P80Quantile * standardDeviation, 0,
+            MidpointRounding.AwayFromZero);
 }

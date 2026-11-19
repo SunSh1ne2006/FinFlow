@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FinFlow — интернет-банк</title>
+    <link rel="stylesheet" href="client.css" />
+</head>
+<body>
+    <!-- Экран входа по паспортным данным -->
+    <section id="login-screen" class="screen">
+        <div class="login-layout">
+            <aside class="login-aside">
+                <div class="brand brand-light">
+                    <span class="brand-mark">FinFlow</span>
+                    <span class="brand-sub">интернет-банк</span>
+                </div>
+                <h1>Ваши вклады<br />под контролем</h1>
+                <ul class="benefits">
+                    <li>Все действующие и закрытые вклады в одном месте</li>
+                    <li>Сроки, суммы, ставки и начисленные проценты</li>
+                    <li>Ставки и условия новых вкладов банка</li>
+                </ul>
+                <p class="aside-note">
+                    Вход выполняется по паспортным данным, которые хранятся в базе банка:
+                    серия и номер документа и дата рождения.
+                </p>
+            </aside>
+
+            <main class="login-card">
+                <h2>Вход в личный кабинет</h2>
+                <p class="muted">Введите паспортные данные, как в документе</p>
+
+                <form id="login-form" autocomplete="off">
+                    <label class="field">
+                        <span>Серия и номер паспорта</span>
+                        <input id="login-document" name="document" placeholder="301AB1234" maxlength="20" required />
+                    </label>
+
+                    <label class="field">
+                        <span>Дата рождения</span>
+                        <input id="login-birth" name="birth" type="date" required />
+                    </label>
+
+                    <button id="login-submit" type="submit" class="btn btn-primary btn-block">Войти</button>
+                    <p id="login-error" class="form-error" role="alert"></p>
+                </form>
+
+                <div class="demo-box">
+                    <strong>Демонстрационный доступ</strong>
+                    <div>Паспорт: <code>301AB1234</code></div>
+                    <div>Дата рождения: <code>14.03.1985</code></div>
+                    <p>
+                        Второй демонстрационный клиент: <code>302AB5678</code> / <code>22.07.1990</code>.
+                        Остальные клиенты базы имеют свои паспортные данные и даты рождения.
+                    </p>
+                </div>
+            </main>
+        </div>
+    </section>
+
+    <!-- Личный кабинет -->
+    <section id="app-screen" class="screen hidden">
+        <header class="topbar">
+            <div class="brand">
+                <span class="brand-mark">FinFlow</span>
+                <span class="brand-sub">интернет-банк</span>
+            </div>
+            <div class="topbar-right">
+                <div class="client-chip">
+                    <span id="client-name" class="client-name"></span>
+                    <span id="client-document" class="client-document"></span>
+                </div>
+                <button id="logout-button" class="btn btn-ghost" type="button">Выйти</button>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <div class="greeting">
+                <h1 id="client-greeting">Здравствуйте!</h1>
+                <p id="client-meta" class="muted"></p>
+            </div>
+
+            <nav class="tabs" role="tablist">
+                <button class="tab active" data-tab="deposits" type="button">Мои вклады</button>
+                <button class="tab" data-tab="offers" type="button">Вклады банка</button>
+            </nav>
+
+            <section id="view-deposits" class="view">
+                <div id="totals" class="totals"></div>
+                <div id="deposits" class="cards"></div>
+            </section>
+
+            <section id="view-offers" class="view hidden">
+                <div id="offers-note" class="note"></div>
+                <div id="offers" class="cards"></div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <span>© FinFlow, демонстрационный личный кабинет клиента</span>
+            <span id="server-date" class="muted"></span>
+        </footer>
+    </section>
+
+    <!-- Детали вклада -->
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-card">
+            <button id="modal-close" class="modal-close" type="button" aria-label="Закрыть">×</button>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="client.js"></script>
+</body>
+</html>

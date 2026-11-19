@@ -68,6 +68,32 @@ public static class Parsing
         _ => source.ToString()
     };
 
+    public static string Text(this CapitalizationMode mode) => mode switch
+    {
+        CapitalizationMode.Monthly => "ежемесячная капитализация",
+        _ => "без капитализации"
+    };
+
+    public static string Text(this InterestPayoutMode mode) => mode switch
+    {
+        InterestPayoutMode.Monthly => "ежемесячная выплата",
+        InterestPayoutMode.OnDemand => "по требованию",
+        _ => "в конце срока"
+    };
+
+    public static string Text(this RateType type) => type switch
+    {
+        RateType.Floating => "плавающая",
+        _ => "фиксированная"
+    };
+
+    public static string Text(this AccrualStatus status) => status switch
+    {
+        AccrualStatus.Capitalized => "капитализированы",
+        AccrualStatus.Paid => "выплачены",
+        _ => "начислены"
+    };
+
     public static string Text(this AccountStatus status) => status switch
     {
         AccountStatus.Open => "Открыт",

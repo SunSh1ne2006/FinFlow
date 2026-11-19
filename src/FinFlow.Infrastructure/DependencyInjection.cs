@@ -23,6 +23,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<ITokenStore, InMemoryTokenStore>();
+        services.AddSingleton<IClientSessionStore, InMemoryClientSessionStore>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
 
         services.AddScoped<IAisIdoGateway, AisIdoGateway>();
@@ -55,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<ReportService>();
         services.AddScoped<AdminService>();
         services.AddScoped<MetaService>();
+        services.AddScoped<ClientPortalService>();
 
         return services;
     }
@@ -67,7 +69,32 @@ public static class DependencyInjection
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
         await db.Database.EnsureCreatedAsync();
+        await EnsureClientPortalSchemaAsync(db, logger);
         await DbSeeder.SeedAsync(db, hasher);
         logger?.LogInformation("База данных FinFlow готова: схема создана, начальные данные загружены.");
+    }
+
+    /// <summary>
+    /// Совместимость с базой, созданной до появления личного кабинета клиента:
+    /// EnsureCreated не изменяет существующую схему, поэтому отсутствующая колонка
+    /// Clients.BirthDate добавляется отдельно (SQL Server).
+    /// </summary>
+    private static async Task EnsureClientPortalSchemaAsync(BankDbContext db, ILogger logger)
+    {
+        if (!db.Database.IsSqlServer())
+        {
+            return;
+        }
+
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "IF COL_LENGTH('Clients','BirthDate') IS NULL ALTER TABLE [Clients] ADD [BirthDate] date NULL;");
+        }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(exception,
+                "Не удалось проверить колонку Clients.BirthDate. Если личный кабинет клиента недоступен, создайте базу заново.");
+        }
     }
 }

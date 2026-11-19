@@ -97,7 +97,7 @@ dotnet run --project src/FinFlow.Api      # http://localhost:5080
 dotnet run --project src/FinFlow.Desktop  # обращается к http://localhost:5080
 #    адрес переопределяется переменной окружения FINFLOW_API
 
-# 5. Тесты
+# 5. Тесты (xUnit v3, Microsoft.Testing.Platform)
 dotnet test
 ```
 

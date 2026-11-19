@@ -23,11 +23,4 @@ jobs:
         run: dotnet build FinFlow.sln -c Release --no-restore
 
       - name: Test
-        shell: pwsh
-        run: |
-          dotnet test --project tests/FinFlow.Tests/FinFlow.Tests.csproj -c Release 2>&1 | Tee-Object -FilePath test.log
-          $code = $LASTEXITCODE
-          if ($code -ne 0) {
-            Get-Content test.log -Tail 30 | ForEach-Object { Write-Host "::error title=TESTLOG::$_" }
-          }
-          exit $code
+        run: dotnet test --project tests/FinFlow.Tests/FinFlow.Tests.csproj -c Release

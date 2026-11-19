@@ -9,6 +9,8 @@ public class Client : BaseEntity
     public ClientType Type { get; set; } = ClientType.Individual;
     public string Name { get; set; }
     public string IdNumber { get; set; }
+    /// <summary>Дата рождения из паспорта: используется как контрольный реквизит входа в личный кабинет.</summary>
+    public DateOnly? BirthDate { get; set; }
     public string Country { get; set; } = "BY";
     public bool IsResident { get; set; } = true;
     public string Phone { get; set; }

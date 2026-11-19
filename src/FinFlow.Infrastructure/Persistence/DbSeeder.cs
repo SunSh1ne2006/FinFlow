@@ -150,11 +150,12 @@ public static class DbSeeder
 
         ProductVersion Version(decimal rate, DepositType depositType, bool revocable, int termMonths,
             CapitalizationMode capitalization, InterestPayoutMode payout, decimal minAmount, decimal minBalance,
-            bool prolongation = false, RateType rateType = RateType.Fixed, decimal spread = 0m)
+            bool prolongation = false, RateType rateType = RateType.Fixed, decimal spread = 0m, int version = 1,
+            DateOnly? from = null)
         {
             return new ProductVersion
             {
-                Version = 1,
+                Version = version,
                 RatePercent = rate,
                 RateType = rateType,
                 SpreadPercent = spread,
@@ -167,7 +168,7 @@ public static class DbSeeder
                 MinAmount = minAmount,
                 MinBalance = minBalance,
                 DayBase = 0,
-                ValidFrom = validFrom,
+                ValidFrom = from ?? validFrom,
                 IsApproved = true,
                 ApprovedAt = DateTime.UtcNow,
                 RvsrLimit = ModelBankData.RvsrByn1To3Years,
@@ -185,6 +186,7 @@ public static class DbSeeder
             Description = "Срочный безотзывный вклад с ежемесячной капитализацией процентов."
         };
         irrevocable.Versions.Add(Version(11.8m, DepositType.Term, false, 12, CapitalizationMode.Monthly, InterestPayoutMode.AtEnd, 100m, 0m, true));
+        irrevocable.Versions.Add(Version(12.3m, DepositType.Term, false, 24, CapitalizationMode.Monthly, InterestPayoutMode.AtEnd, 100m, 0m, true, version: 2, from: validFrom.AddDays(1)));
 
         var revocable = new Product
         {
@@ -196,6 +198,7 @@ public static class DbSeeder
             Description = "Срочный отзывный вклад с ежемесячной выплатой процентов и перерасчётом по ставке до востребования при досрочном возврате."
         };
         revocable.Versions.Add(Version(9.0m, DepositType.Term, true, 6, CapitalizationMode.None, InterestPayoutMode.Monthly, 50m, 0m, true));
+        revocable.Versions.Add(Version(8.0m, DepositType.Term, true, 3, CapitalizationMode.None, InterestPayoutMode.Monthly, 50m, 0m, true, version: 2, from: validFrom.AddDays(1)));
 
         var currency = new Product
         {
@@ -208,6 +211,19 @@ public static class DbSeeder
         };
         currency.Versions.Add(Version(1.5m, DepositType.Term, true, 12, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, 0m, true));
 
+        var savings = new Product
+        {
+            Code = "BYN-NAKOP",
+            Name = "Накопительный вклад «Рост»",
+            Kind = ProductKind.Deposit,
+            Currency = "BYN",
+            BalanceAccount = "3014",
+            Description = "Отзывный накопительный вклад: проценты выплачиваются в конце срока, возможна пролонгация."
+        };
+        savings.Versions.Add(Version(8.5m, DepositType.Term, true, 3, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, 0m, true, version: 1, from: validFrom));
+        savings.Versions.Add(Version(9.2m, DepositType.Term, true, 6, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, 0m, true, version: 2, from: validFrom.AddDays(1)));
+        savings.Versions.Add(Version(10.4m, DepositType.Term, true, 12, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, 0m, true, version: 3, from: validFrom.AddDays(2)));
+
         var current = new Product
         {
             Code = "BYN-TEKUCH",
@@ -219,7 +235,7 @@ public static class DbSeeder
         };
         current.Versions.Add(Version(0.1m, DepositType.None, true, 0, CapitalizationMode.None, InterestPayoutMode.Monthly, 0m, 0m));
 
-        db.Products.AddRange(irrevocable, revocable, currency, current);
+        db.Products.AddRange(irrevocable, revocable, currency, savings, current);
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -233,13 +249,15 @@ public static class DbSeeder
 
         var sequence = 0;
 
-        Client NewClient(ClientType type, string name, string idNumber, KycRiskLevel risk, IdentificationStatus status = IdentificationStatus.Identified)
+        Client NewClient(ClientType type, string name, string idNumber, KycRiskLevel risk,
+            IdentificationStatus status = IdentificationStatus.Identified, DateOnly? birthDate = null)
         {
             return new Client
             {
                 Type = type,
                 Name = name,
                 IdNumber = idNumber,
+                BirthDate = birthDate,
                 Phone = "+375 (29) 1" + (1000000 + sequence).ToString().Substring(1, 6),
                 Email = "client" + (++sequence) + "@example.by",
                 Country = "BY",
@@ -257,11 +275,11 @@ public static class DbSeeder
             };
         }
 
-        var ivanov = NewClient(ClientType.Individual, "Иванов Иван Иванович", "301AB1234", KycRiskLevel.Low);
-        var petrova = NewClient(ClientType.Individual, "Петрова Анна Сергеевна", "302AB5678", KycRiskLevel.Low);
-        var smirnova = NewClient(ClientType.Individual, "Смирнова Ольга Викторовна", "303AB9012", KycRiskLevel.Medium);
-        var sidorova = NewClient(ClientType.Individual, "Сидорова Мария Павловна", "304AB3456", KycRiskLevel.High);
-        var petrov = NewClient(ClientType.Individual, "Петров Дмитрий Олегович", "305AB7890", KycRiskLevel.Low);
+        var ivanov = NewClient(ClientType.Individual, "Иванов Иван Иванович", "301AB1234", KycRiskLevel.Low, birthDate: new DateOnly(1985, 3, 14));
+        var petrova = NewClient(ClientType.Individual, "Петрова Анна Сергеевна", "302AB5678", KycRiskLevel.Low, birthDate: new DateOnly(1990, 7, 22));
+        var smirnova = NewClient(ClientType.Individual, "Смирнова Ольга Викторовна", "303AB9012", KycRiskLevel.Medium, birthDate: new DateOnly(1978, 11, 5));
+        var sidorova = NewClient(ClientType.Individual, "Сидорова Мария Павловна", "304AB3456", KycRiskLevel.High, birthDate: new DateOnly(1969, 2, 18));
+        var petrov = NewClient(ClientType.Individual, "Петров Дмитрий Олегович", "305AB7890", KycRiskLevel.Low, birthDate: new DateOnly(1992, 9, 30));
         var vector = NewClient(ClientType.LegalEntity, "ООО «Вектор»", "191234567", KycRiskLevel.Medium);
         var gorizont = NewClient(ClientType.LegalEntity, "ООО «Горизонт»", "192345678", KycRiskLevel.Low);
         var kovalev = NewClient(ClientType.Entrepreneur, "ИП Ковалёв А. С.", "193456789", KycRiskLevel.Medium);
@@ -361,6 +379,9 @@ public static class DbSeeder
 
         // Вклады: безотзывный (12 мес.), отзывный (6 мес., срок истекает через ~10 дней), валютный.
         OpenAccount(ivanov, irrevocable, irrevocable.Versions[0], 30_000m, 0m, today.AddDays(-300), "ВКЛ", out _);
+        // Второй вклад Иванова и вклад Петровой — для демонстрации личного кабинета клиента.
+        OpenAccount(ivanov, revocable, revocable.Versions[0], 15_000m, 0m, today.AddDays(-35), "ВКЛ", out _);
+        OpenAccount(petrova, irrevocable, irrevocable.Versions[0], 25_000m, 0m, today.AddDays(-210), "ВКЛ", out _);
         OpenAccount(smirnova, revocable, revocable.Versions[0], 20_000m, 0m, today.AddDays(-172), "ВКЛ", out _);
         OpenAccount(kovalev, revocable, revocable.Versions[0], 15_000m, 0m, today.AddDays(-40), "ВКЛ", out _);
         OpenAccount(petrov, usdProduct, usdProduct.Versions[0], 2_500m, 0m, today.AddDays(-90), "ВКЛ", out _);

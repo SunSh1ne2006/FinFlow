@@ -18,7 +18,8 @@ builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
 builder.Services
     .AddAuthentication(TokenAuthenticationHandler.SchemeName)
-    .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.SchemeName, _ => { });
+    .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.SchemeName, _ => { })
+    .AddScheme<AuthenticationSchemeOptions, ClientTokenAuthenticationHandler>(ClientTokenAuthenticationHandler.SchemeName, _ => { });
 
 builder.Services.AddAuthorization();
 

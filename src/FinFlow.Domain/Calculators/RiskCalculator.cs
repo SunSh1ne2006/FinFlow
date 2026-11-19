@@ -126,14 +126,18 @@ public static class RiskCalculator
         var variance = list.Sum(r => r.Probability * (1m - r.Probability) * r.MoneyImpact * r.MoneyImpact);
         var sigma = variance <= 0m ? 0m : (decimal)Math.Sqrt((double)variance);
         var z = quantile ?? P80Quantile;
-        var reserve = Money.Round(emv + z * sigma);
+
+        // σ публикуется с точностью 0,1 тыс. р., поэтому и резерв (1.20) считается
+        // от этой же величины и округляется до целых тысяч рублей: 1 330 + 0,84 × 772,6 ≈ 1 979.
+        var sigmaRounded = decimal.Round(sigma, 1, MidpointRounding.AwayFromZero);
+        var reserve = decimal.Round(emv + z * sigmaRounded, 0, MidpointRounding.AwayFromZero);
 
         var residual = Money.Round(scores.Where(s => s.ResidualEmv.HasValue).Sum(s => s.ResidualEmv.Value));
 
         return new RiskSummary
         {
             ExpectedMonetaryValue = emv,
-            StandardDeviation = decimal.Round(sigma, 1, MidpointRounding.AwayFromZero),
+            StandardDeviation = sigmaRounded,
             Reserve = reserve,
             Z = z,
             ResidualEmv = residual,

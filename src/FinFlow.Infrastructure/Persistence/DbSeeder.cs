@@ -124,7 +124,7 @@ public static class DbSeeder
     {
         var validFrom = today.AddMonths(-3);
 
-        static ProductVersion Version(decimal rate, DepositType depositType, bool revocable, int termMonths,
+        ProductVersion Version(decimal rate, DepositType depositType, bool revocable, int termMonths,
             CapitalizationMode capitalization, InterestPayoutMode payout, decimal minAmount, bool prolongation = false)
         {
             return new ProductVersion

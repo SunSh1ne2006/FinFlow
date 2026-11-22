@@ -1,103 +1,152 @@
-# Спецификация REST API
+# REST API
 
-Базовый адрес: `http://localhost:5080`. Формат — JSON (`camelCase`,
-перечисления — строки). Интерактивная документация — `/swagger`.
+Базовый адрес: `http://localhost:5080`. Полная интерактивная документация —
+Swagger UI: `/swagger`, схема OpenAPI: `/swagger/v1/swagger.json`.
+
+JSON в `camelCase`; перечисления передаются строками. Даты — `YYYY-MM-DD`,
+моменты времени — ISO 8601.
 
 ## 1. Аутентификация
 
-Схема `FinFlowToken`: заголовок `Authorization: Bearer <token>`.
-Токен выдаётся на 15 минут; роли проверяются на каждом действии.
-Личный кабинет клиента использует отдельную схему `FinFlowClientToken`
-(токен `cl_…` на 30 минут, роль `Client`) — см. раздел 8.
+Сотрудник получает непрозрачный токен и передаёт его в заголовке:
 
-```bash
-curl -s -X POST http://localhost:5080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"login":"operator1","password":"FinFlow#2026!"}'
+```
+Authorization: Bearer <token>
 ```
 
+| Метод | Путь | Доступ | Назначение |
+|-------|------|--------|-----------|
+| POST | `/api/auth/login` | анонимно | вход по логину и паролю |
+| GET | `/api/auth/me` | сотрудник | текущий пользователь и роли |
+| POST | `/api/auth/logout` | сотрудник | завершение сеанса |
+
 ```json
+POST /api/auth/login
+{ "login": "employee1", "password": "FinFlow#2026!" }
+
+200 OK
 {
-  "token": "…",
-  "expiresAt": "2026-11-12T10:15:00Z",
-  "secondFactorRequired": false,
+  "token": "ff_...",
+  "expiresAt": "2026-11-12T18:00:00Z",
   "user": {
     "id": "…",
-    "login": "operator1",
-    "fullName": "Операционист ЦБУ № 1",
-    "roles": ["Operator"],
-    "roleNames": ["Операционист ЦБУ"],
-    "twoFactorEnabled": false,
-    "isBlocked": false
+    "login": "employee1",
+    "fullName": "Сотрудник ЦБУ № 1 Иванова А. П.",
+    "roles": ["Employee"],
+    "roleNames": ["Сотрудник банка"]
   }
 }
 ```
 
-Контролёр и администратор передают `secondFactor`. Если код не указан, сервер
-возвращает `secondFactorRequired: true` без токена.
+## 2. Клиенты (роль `Employee`)
 
-| Метод | Путь | Доступ | Назначение |
-|-------|------|--------|-----------|
-| POST | `/api/auth/login` | анонимно | вход |
-| GET | `/api/auth/me` | любой авторизованный | текущий пользователь |
-| POST | `/api/auth/logout` | любой авторизованный | отзыв токена |
-| GET | `/api/meta` | авторизованный | роли, валюты, виды операций, лимиты |
-| GET | `/api/meta/roles` | авторизованный | справочник ролей |
-| GET | `/api/health` | анонимно | состояние сервера |
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/api/clients?query=&page=1&pageSize=20` | поиск с постраничной выдачей |
+| GET | `/api/clients/{id}` | карточка клиента со счетами |
+| POST | `/api/clients` | регистрация клиента |
+| PUT | `/api/clients/{id}` | изменение данных и идентификация |
 
-## 2. Клиенты и ПОД/ФТ
+```json
+POST /api/clients
+{
+  "type": "Individual",
+  "name": "Иванов Иван Иванович",
+  "idNumber": "301AB1234",
+  "birthDate": "1985-03-14",
+  "phone": "+375 (29) 123-45-67",
+  "email": "ivanov@example.by"
+}
+```
 
-| Метод | Путь | Роли |
-|-------|------|------|
-| GET | `/api/clients?query=&page=1&pageSize=20` | Operator, Controller, Accountant, Administrator, Head |
-| GET | `/api/clients/{id}` | те же |
-| POST | `/api/clients` | Operator, Administrator |
-| PUT | `/api/clients/{id}/kyc` | Operator, Administrator, AmlOfficer |
-| POST | `/api/clients/{id}/representatives` | Operator, Administrator |
-| POST | `/api/clients/{id}/msi-sync` | Operator, Administrator |
+`type`: `Individual`, `LegalEntity`, `Entrepreneur`. Для физического лица
+`birthDate` обязательна.
 
-## 3. Продукты, счета, договоры
+```json
+PUT /api/clients/{id}
+{ "phone": "+375 (29) 765-43-21", "identify": true }
+```
 
-| Метод | Путь | Роли |
-|-------|------|------|
-| GET | `/api/products` | авторизованный |
-| GET | `/api/products/{id}` | авторизованный |
-| POST | `/api/products` | Administrator, Head, Treasurer |
-| POST | `/api/products/{id}/versions` | Administrator, Head, Treasurer |
-| POST | `/api/products/versions/{versionId}/approve?force=false` | Head |
-| GET | `/api/products/versions/{versionId}/rvsr` | авторизованный |
-| GET | `/api/accounts?clientId=` | операционный контур, казначейство |
-| GET | `/api/accounts/{id}` | те же |
-| GET | `/api/accounts/lookup?number=` | те же |
-| GET | `/api/accounts/{id}/balance?date=` | те же |
-| POST | `/api/accounts` | Operator |
-| PUT | `/api/accounts/{id}/overdraft` | Operator, Controller, Administrator |
-| POST | `/api/accounts/{id}/holds` | Operator, Controller, Administrator |
-| GET | `/api/accounts/{id}/holds` | операционный контур |
-| POST | `/api/accounts/holds/{holdId}/release` | Operator, Controller, Administrator |
-| POST | `/api/accounts/{id}/close` | Operator, Controller, Administrator |
-| GET | `/api/contracts?clientId=&status=` | операционный контур, казначейство |
-| GET | `/api/contracts/{id}` | те же |
-| POST | `/api/contracts` | Operator |
-| POST | `/api/contracts/{id}/consent` | Controller, Head, Administrator |
-| GET | `/api/contracts/{id}/early-return-quote?days=` | операционный контур |
-| GET | `/api/contracts/{id}/accruals` | операционный контур |
+## 3. Счета и ограничения (`Employee`, `Administrator`)
 
-## 4. Операции
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/api/accounts?clientId={id}` | счета клиента |
+| GET | `/api/accounts/{id}` | карточка счёта |
+| GET | `/api/accounts/lookup?number=...` | поиск по прежнему или изменённому номеру |
+| GET | `/api/accounts/{id}/balance?date=` | снимок остатка B/L/H/D |
+| POST | `/api/accounts` | открытие счёта (`Employee`) |
+| PUT | `/api/accounts/{id}/overdraft` | изменение лимита овердрафта |
+| POST | `/api/accounts/{id}/close` | закрытие счёта |
+| GET | `/api/accounts/{id}/holds` | действующие ограничения |
+| POST | `/api/accounts/{id}/holds` | регистрация ограничения |
+| POST | `/api/accounts/holds/{holdId}/release` | снятие ограничения |
 
-| Метод | Путь | Роли |
-|-------|------|------|
-| GET | `/api/operations?accountId=&status=&take=100` | авторизованный |
-| GET | `/api/operations/{id}` | авторизованный |
-| GET | `/api/operations/queue?take=200` | Controller, Administrator, Head |
-| GET | `/api/operations/suspended` | AmlOfficer, Administrator, Head |
-| POST | `/api/operations` | Operator, Administrator |
-| POST | `/api/operations/{id}/submit` | Operator, Administrator |
-| POST | `/api/operations/{id}/approve` | Controller, Administrator, Head |
-| POST | `/api/operations/{id}/reject` | Controller, Administrator, Head, AmlOfficer |
-| POST | `/api/operations/{id}/reverse` | Controller, Administrator |
+```json
+POST /api/accounts
+{
+  "clientId": "…",
+  "productId": "…",
+  "currency": "BYN",
+  "overdraftLimit": 5000,
+  "initialAmount": 1000
+}
+```
 
-Создание операции:
+```json
+POST /api/accounts/{id}/holds
+{
+  "source": "Bank",
+  "basisNumber": "АРЕСТ-2026-771",
+  "basisAuthority": "Отдел принудительного исполнения",
+  "amount": 4000,
+  "isArrest": true,
+  "comment": "Постановление об аресте"
+}
+```
+
+`source`: `Bank`, `CardAuthorization`, `Booking`.
+
+## 4. Продукты
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/api/products?kind=Deposit` | справочник продуктов и версий условий |
+| GET | `/api/products/{id}` | продукт с версиями |
+
+`kind`: `Deposit` или `CurrentAccount`. Создание и утверждение версий через API
+не выполняется: справочник формируется при инициализации базы.
+
+## 5. Договоры вкладов
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/api/contracts?clientId=&status=` | договоры клиента или отделения |
+| GET | `/api/contracts/{id}` | договор |
+| POST | `/api/contracts` | открыть вклад (`Employee`) |
+| POST | `/api/contracts/{id}/consent` | согласие банка на досрочный возврат |
+| GET | `/api/contracts/{id}/early-return-quote?days=` | расчёт досрочного возврата |
+| GET | `/api/contracts/{id}/accruals` | начисления по договору |
+
+```json
+POST /api/contracts
+{
+  "clientId": "…",
+  "productVersionId": "…",
+  "amount": 30000,
+  "termMonths": 12,
+  "notes": "Оформлен в ЦБУ № 1"
+}
+```
+
+## 6. Операции (`Employee`, `Administrator`)
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/api/operations?accountId=&status=&take=100` | операции по счёту |
+| GET | `/api/operations/{id}` | операция |
+| POST | `/api/operations` | провести операцию |
+| POST | `/api/operations/{id}/reverse` | сторнировать операцию |
 
 ```json
 POST /api/operations
@@ -105,162 +154,157 @@ POST /api/operations
   "accountId": "…",
   "contractId": "…",
   "kind": "CashIn",
-  "amount": 12000,
-  "description": "Взнос наличными в кассу",
-  "documentNumber": "КО-000123",
-  "sourceSystem": "Branch",
-  "externalId": null
+  "amount": 2500,
+  "description": "Пополнение счёта наличными",
+  "documentNumber": "ПКО-20261112-0001"
 }
 ```
 
-Ответ — `OperationDto` со статусом `Draft`. После `POST /submit` статус
-становится `Executed` (сумма в пределах лимита), `OnControl` (свыше 5 000 р.)
-или `Suspended` (признаки ПОД/ФТ).
+Допустимые виды для ручного проведения: `CashIn`, `TransferIn`, `CashOut`,
+`TransferOut`, `PartialWithdrawal`, `EarlyReturn`. Системные виды
+(`InterestPayment`, `Capitalization`, `TaxWithholding`) и `Reversal` создаются
+автоматически.
 
-Подтверждение контролёром:
-
-```json
-POST /api/operations/{id}/approve
-{ "signature": "SIG-20261112101500-controller1" }
-```
-
-Ошибки бизнес-правил возвращаются с HTTP 403/409 и понятным сообщением:
+Ответ содержит статус `Executed` или `Rejected` с причиной:
 
 ```json
-{ "status": 409, "title": "Изменился доступный остаток на момент подтверждения: доступно 9000.00 р., требуется 12000.00 р." }
-```
-
-## 5. Аналитика
-
-| Метод | Путь | Роли |
-|-------|------|------|
-| GET | `/api/liquidity/forecast?days=30&scenario=model|db` | Treasurer, Head, RiskManager, Administrator |
-| GET | `/api/liquidity/settings` | те же |
-| PUT | `/api/liquidity/settings` | Treasurer, Head, Administrator |
-| GET | `/api/margin?scenario=model|db` | Head, Treasurer, RiskManager, Administrator |
-| GET | `/api/risks` | RiskManager, Head, Treasurer, Administrator |
-| GET | `/api/risks/summary` | те же |
-| POST | `/api/risks/{id}/assessments` | RiskManager, Head, Administrator |
-| GET | `/api/aml/queue` | AmlOfficer, Administrator, Head |
-| POST | `/api/aml/{operationId}/decision` | AmlOfficer, Administrator, Head |
-| GET | `/api/parameters` | Administrator, Head, Treasurer, Accountant |
-| POST | `/api/parameters` | Administrator |
-| GET | `/api/audit?entity=&action=&page=1&pageSize=50` | Administrator, Head |
-| GET | `/api/users` | Administrator |
-| POST | `/api/users` | Administrator |
-| POST | `/api/users/{id}/block?blocked=true` | Administrator |
-
-Отчёты (`Head`, `Accountant`, `Treasurer`, `RiskManager`, `Administrator`):
-`/api/reports/portfolio`, `/api/reports/portfolio.csv`, `/api/reports/agv`,
-`/api/reports/holds`, `/api/reports/tax`.
-
-## 6. Интеграции
-
-| Метод | Путь | Доступ | Назначение |
-|-------|------|--------|-----------|
-| POST | `/api/integrations/ais-ido/documents` | анонимно (сервисный вызов) | приём ареста/приостановления/требования |
-| POST | `/api/integrations/ledger/sync` | Accountant, Administrator, Head | передача проводок в главную книгу |
-
-```json
-POST /api/integrations/ais-ido/documents
 {
-  "externalId": "IDO-2026-000741",
-  "kind": "Arrest",
-  "accountNumber": "3014000000001",
-  "amount": 4000,
-  "basisNumber": "ИД-14/2026",
-  "basisAuthority": "Отдел принудительного исполнения",
-  "validFrom": "2026-11-12",
-  "comment": "Арест в пределах суммы"
+  "id": "…",
+  "kind": "CashOut",
+  "amount": 8000,
+  "status": "Rejected",
+  "rejectionReason": "Недостаточно средств: доступный остаток 200.00 р., требуется 8000.00 р.",
+  "checkedAvailable": 200.00,
+  "executedAt": null
 }
 ```
 
-Ответ:
+Сторнирование: `{ "reason": "Ошибочная сумма" }`. Доступно для исполненной и ещё
+не сторнированной операции ручного вида.
 
-```json
-{ "accepted": true, "duplicate": false, "message": "Ограничение зарегистрировано",
-  "holdId": "…", "accountId": "…", "documentId": "…" }
-```
-
-Повторная отправка того же `externalId` возвращает `duplicate: true` и ссылки
-на ранее созданные записи (требование 23).
-
-## 7. День закрытия
-
-| Метод | Путь | Роли |
-|-------|------|------|
-| GET | `/api/dayclose/current` | Accountant, Administrator, Head |
-| GET | `/api/dayclose/history?take=30` | те же |
-| POST | `/api/dayclose/start` | те же |
-| POST | `/api/dayclose/continue` | те же |
-| GET | `/api/dayclose/reconciliation?date=` | те же |
-
-## 8. Личный кабинет клиента
-
-Схема `FinFlowClientToken`, роль `Client`. Токен выдаётся на 30 минут и не даёт
-доступа ни к одному операционному методу. Все методы, кроме входа, требуют
-заголовок `Authorization: Bearer cl_…`.
+## 7. Закрытие операционного дня (`Employee`, `Administrator`)
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
-| POST | `/api/portal/auth/login` | вход по паспорту и дате рождения |
-| POST | `/api/portal/auth/logout` | завершение сеанса |
-| GET | `/api/portal/profile` | профиль клиента (маскированные реквизиты) |
-| GET | `/api/portal/deposits` | все вклады клиента с итогами по валютам |
-| GET | `/api/portal/deposits/{contractId}` | детали вклада, начисления, досрочный возврат |
-| GET | `/api/portal/offers` | каталог вкладов банка с условиями по срокам |
-
-```bash
-curl -s -X POST http://localhost:5080/api/portal/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"documentNumber":"301AB1234","birthDate":"1985-03-14"}'
-```
+| GET | `/api/dayclose/current` | последний операционный день |
+| GET | `/api/dayclose/history?take=30` | история закрытий |
+| POST | `/api/dayclose/start` | запустить закрытие дня |
+| POST | `/api/dayclose/continue` | продолжить с сохранённого этапа |
 
 ```json
 {
-  "token": "cl_…",
-  "expiresAt": "2026-11-12T10:45:00Z",
-  "birthDateRegistered": false,
-  "client": {
-    "clientId": "…",
-    "fullName": "Иванов Иван Иванович",
-    "documentNumberMasked": "30****34",
-    "phoneMasked": "+375 (**) ***-**-34",
-    "birthDate": "1985-03-14",
-    "identificationStatusText": "Идентифицирован",
-    "greeting": "Здравствуйте, Иван Иванович!"
-  }
+  "id": "…",
+  "date": "2026-11-12",
+  "status": "Closed",
+  "stage": "Completed",
+  "stageText": "Закрытие завершено",
+  "accrualCount": 9,
+  "rejectedOperations": 0,
+  "interestAccrued": 1234.56,
+  "taxWithheld": 98.76
 }
 ```
 
-Правила входа: номер документа нормализуется (пробелы и дефисы удаляются,
-регистр приводится к верхнему), сравнивается с `Client.IdNumber`; для вкладов
-учитываются только клиенты с типом «физическое лицо» и пройденной идентификацией.
-Если дата рождения в карточке ещё не заполнена, она сохраняется при первом входе
-(`birthDateRegistered: true`). Ошибки: 401 — реквизиты не совпали, 403 — юридическое
-лицо, 400 — отсутствует дата рождения.
+## 8. Отчёт о работе сотрудников (`Head`, `Administrator`)
 
-Элемент `deposits[]` ответа `GET /api/portal/deposits` содержит номер договора,
-номера счетов, сумму, ставку и её тип, срок в месяцах и днях, даты открытия и
-возврата, остаток дней и процент прохождения срока, начисленные и выплаченные
-проценты, ожидаемый доход и сумму к получению, тексты капитализации и выплаты,
-дату ближайшей выплаты, признаки отзывности и пролонгации, статус.
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/api/reports/staff?from=2026-10-01&to=2026-10-31` | отчёт за период |
 
-Ответ `GET /api/portal/offers` группирует версии условий по продуктам: для каждого
-срока возвращаются ставка, количество дней, минимальная сумма и неснижаемый
-остаток, доход на 1 000 р. по формуле (1.5), порядок выплаты процентов и отметка
-о соблюдении РВСР. Дополнительно передаются ставка до востребования, значения
-РВСР и дата расчёта.
+```json
+{
+  "from": "2026-10-01",
+  "to": "2026-10-31",
+  "generatedAt": "2026-11-12T09:00:00Z",
+  "totals": {
+    "employees": 2,
+    "clientsRegistered": 8,
+    "accountsOpened": 14,
+    "depositsOpened": 6,
+    "depositAmount": 132500,
+    "operationsCount": 5,
+    "operationsAmount": 7000,
+    "dayCloses": 3
+  },
+  "rows": [
+    {
+      "userId": "…",
+      "login": "employee1",
+      "fullName": "Сотрудник ЦБУ № 1 Иванова А. П.",
+      "role": "Сотрудник банка",
+      "clientsRegistered": 5,
+      "accountsOpened": 8,
+      "depositsOpened": 4,
+      "depositAmount": 92000,
+      "operationsCount": 3,
+      "operationsAmount": 4500,
+      "dayCloses": 2
+    }
+  ]
+}
+```
 
-## 9. Коды ошибок
+## 9. Пользователи (`Administrator`)
 
-| Код | Значение |
-|-----|----------|
-| 400 | некорректные параметры запроса (ProblemDetails) |
-| 401 | отсутствует или истёк токен |
-| 403 | недостаточно прав или нарушено бизнес-правило (например, автор ≠ контролёр) |
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/api/users` | список сотрудников |
+| POST | `/api/users` | создание учётной записи |
+| POST | `/api/users/{id}/block?blocked=true` | блокировка / разблокировка |
+
+```json
+POST /api/users
+{
+  "login": "employee3",
+  "fullName": "Сотрудник ЦБУ № 3",
+  "password": "FinFlow#2026!",
+  "role": "Employee"
+}
+```
+
+`role`: `Employee`, `Administrator`, `Head`.
+
+## 10. Журнал аудита (`Administrator`)
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/api/audit?entity=&action=&page=1&pageSize=50` | записи журнала |
+
+## 11. Личный кабинет клиента
+
+Отдельная схема аутентификации; токен также передаётся в `Authorization: Bearer`.
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| POST | `/api/portal/auth/login` | вход по документу и дате рождения |
+| POST | `/api/portal/auth/logout` | завершение сеанса |
+| GET | `/api/portal/profile` | профиль клиента |
+| GET | `/api/portal/deposits` | вклады с суммами и сроками |
+| GET | `/api/portal/deposits/{contractId}` | детали вклада и оценка досрочного возврата |
+| GET | `/api/portal/offers` | опубликованные условия вкладов |
+
+```json
+POST /api/portal/auth/login
+{ "documentNumber": "301AB1234", "birthDate": "1985-03-14" }
+```
+
+## 12. Служебные
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/api/health` | состояние сервера |
+| GET | `/` | перенаправление на `/client/` |
+| GET | `/swagger` | Swagger UI |
+
+## 13. Ошибки
+
+Ошибки возвращаются в формате ProblemDetails; поле `title` содержит текст на
+русском языке.
+
+| Код | Причина |
+|-----|---------|
+| 400 | некорректные параметры запроса |
+| 401 | нет или истёк токен, неверный пароль |
+| 403 | роль не имеет прав |
 | 404 | объект не найден |
-| 409 | конфликт состояния или конкурентное изменение остатка |
-
-`GET /swagger/v1/swagger.json` содержит полную схему; в Swagger UI доступна
-кнопка `Authorize` для подстановки токена.
+| 409 | конфликт бизнес-правила (недостаточно средств, закрытый счёт, дубль) |

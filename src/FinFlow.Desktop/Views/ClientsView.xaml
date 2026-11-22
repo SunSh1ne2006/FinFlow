@@ -87,7 +87,7 @@
                                 <DataGridTextColumn Header="Валюта" Binding="{Binding Currency}" Width="70" />
                                 <DataGridTextColumn Header="Остаток" Binding="{Binding Balance, StringFormat={}{0:N2}}" Width="110" />
                                 <DataGridTextColumn Header="Доступно" Binding="{Binding AvailableBalance, StringFormat={}{0:N2}}" Width="110" />
-                                <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="90" />
+                                <DataGridTextColumn Header="Статус" Binding="{Binding StatusText}" Width="90" />
                             </DataGrid.Columns>
                         </DataGrid>
                         <Button Content="Открыть карточку счёта" Command="{Binding OpenAccountCommand}"

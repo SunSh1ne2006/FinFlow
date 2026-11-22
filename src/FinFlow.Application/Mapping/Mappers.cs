@@ -38,6 +38,7 @@ public static class Mappers
             TypeText = client.Type.Text(),
             IdNumber = client.IdNumber,
             IdentificationStatus = client.IdentificationStatus.ToString(),
+            IdentificationStatusText = client.IdentificationStatus.Text(),
             IsIdentified = client.IsIdentified,
             AccountsCount = client.Accounts?.Count ?? 0,
             CreatedAt = client.CreatedAt
@@ -55,6 +56,7 @@ public static class Mappers
             TypeText = listItem.TypeText,
             IdNumber = listItem.IdNumber,
             IdentificationStatus = listItem.IdentificationStatus,
+            IdentificationStatusText = listItem.IdentificationStatusText,
             IsIdentified = listItem.IsIdentified,
             AccountsCount = accounts?.Count ?? listItem.AccountsCount,
             CreatedAt = listItem.CreatedAt,
@@ -90,6 +92,7 @@ public static class Mappers
             Balance = account.Balance,
             OverdraftLimit = account.OverdraftLimit,
             Status = account.Status.ToString(),
+            StatusText = account.Status.Text(),
             ContractNumber = contract?.Number,
             ProductName = contract?.ProductVersion?.Product?.Name,
             AvailableBalance = availableBalance
@@ -115,6 +118,7 @@ public static class Mappers
             Balance = account.Balance,
             OverdraftLimit = account.OverdraftLimit,
             Status = account.Status.ToString(),
+            StatusText = account.Status.Text(),
             ContractNumber = contract?.Number,
             ProductName = contract?.ProductVersion?.Product?.Name,
             AvailableBalance = snapshot.AvailableBalance,

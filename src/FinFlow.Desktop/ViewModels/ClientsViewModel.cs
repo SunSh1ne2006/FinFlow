@@ -95,7 +95,7 @@ public class ClientsViewModel : ViewModelBase
 
     public string ClientInfo => Details == null
         ? "Выберите клиента в списке слева или зарегистрируйте нового."
-        : $"{Details.TypeText} · {Details.IdNumber} · {Details.IdentificationStatus} · счетов: {Details.AccountsCount}";
+        : $"{Details.TypeText} · {Details.IdNumber} · {Details.IdentificationStatusText} · счетов: {Details.AccountsCount}";
 
     public string PageCaption => _total == 0 ? "Нет записей" : $"Страница {_page} · всего {_total}";
 

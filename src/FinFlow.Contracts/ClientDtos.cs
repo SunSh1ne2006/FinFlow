@@ -8,6 +8,7 @@ public class ClientListItemDto
     public string TypeText { get; set; }
     public string IdNumber { get; set; }
     public string IdentificationStatus { get; set; }
+    public string IdentificationStatusText { get; set; }
     public bool IsIdentified { get; set; }
     public int AccountsCount { get; set; }
     public DateTime CreatedAt { get; set; }

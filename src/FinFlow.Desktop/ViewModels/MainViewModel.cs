@@ -21,6 +21,11 @@ public class MainViewModel : ObservableObject
 
         Clients.AccountSelected += OnAccountSelected;
         Account.AccountOpened += OnAccountDetailsOpened;
+
+        if (!CanServeClients)
+        {
+            _selectedTabIndex = CanAdminister ? 5 : 4;
+        }
     }
 
     public Session Session { get; }

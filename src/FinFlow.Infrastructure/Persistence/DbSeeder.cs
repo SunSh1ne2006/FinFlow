@@ -294,7 +294,7 @@ public static class DbSeeder
                 ProductVersionId = version.Id,
                 OpenDate = openDate,
                 EndDate = endDate,
-                Principal = balance,
+                Principal = product.Kind == ProductKind.Deposit ? balance : 0m,
                 Status = ContractStatus.Active,
                 CreatedBy = createdBy?.Id,
                 CreatedAt = account.CreatedAt

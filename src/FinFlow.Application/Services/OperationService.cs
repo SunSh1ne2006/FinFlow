@@ -400,9 +400,10 @@ public class OperationService
 
         var contract = operation.Contract ?? await _db.Contracts
             .Include(c => c.ProductVersion)
+            .ThenInclude(v => v.Product)
             .FirstOrDefaultAsync(c => c.Id == operation.ContractId.Value, cancellationToken);
 
-        if (contract == null)
+        if (contract == null || contract.ProductVersion?.Product?.Kind != ProductKind.Deposit)
         {
             return;
         }
@@ -416,7 +417,7 @@ public class OperationService
             case OperationKind.CashOut:
             case OperationKind.TransferOut:
             case OperationKind.PartialWithdrawal:
-                contract.Principal = Money.Round(contract.Principal - operation.Amount);
+                contract.Principal = Money.Round(Math.Max(0m, contract.Principal - operation.Amount));
                 break;
             case OperationKind.EarlyReturn:
                 contract.Status = ContractStatus.EarlyReturned;
@@ -437,9 +438,11 @@ public class OperationService
         }
 
         var contract = original.Contract ?? await _db.Contracts
+            .Include(c => c.ProductVersion)
+            .ThenInclude(v => v.Product)
             .FirstOrDefaultAsync(c => c.Id == original.ContractId.Value, cancellationToken);
 
-        if (contract == null)
+        if (contract == null || contract.ProductVersion?.Product?.Kind != ProductKind.Deposit)
         {
             return;
         }

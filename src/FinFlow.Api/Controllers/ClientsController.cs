@@ -7,7 +7,7 @@ namespace FinFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/clients")]
-[Authorize(Roles = "Operator,Controller,Accountant,Administrator,Head")]
+[Authorize(Roles = "Employee")]
 public class ClientsController : ControllerBase
 {
     private readonly ClientService _clients;
@@ -30,22 +30,10 @@ public class ClientsController : ControllerBase
         Ok(await _clients.GetAsync(id, cancellationToken));
 
     [HttpPost]
-    [Authorize(Roles = "Operator,Administrator")]
     public async Task<ActionResult<ClientDetailsDto>> Create([FromBody] CreateClientRequest request, CancellationToken cancellationToken) =>
         Ok(await _clients.CreateAsync(request, cancellationToken));
 
-    [HttpPut("{id:guid}/kyc")]
-    [Authorize(Roles = "Operator,Administrator,AmlOfficer")]
-    public async Task<ActionResult<ClientDetailsDto>> UpdateKyc(Guid id, [FromBody] UpdateKycRequest request, CancellationToken cancellationToken) =>
-        Ok(await _clients.UpdateKycAsync(id, request, cancellationToken));
-
-    [HttpPost("{id:guid}/representatives")]
-    [Authorize(Roles = "Operator,Administrator")]
-    public async Task<ActionResult<RepresentativeDto>> AddRepresentative(Guid id, [FromBody] AddRepresentativeRequest request, CancellationToken cancellationToken) =>
-        Ok(await _clients.AddRepresentativeAsync(id, request, cancellationToken));
-
-    [HttpPost("{id:guid}/msi-sync")]
-    [Authorize(Roles = "Operator,Administrator")]
-    public async Task<ActionResult<ClientDetailsDto>> MsiSync(Guid id, CancellationToken cancellationToken) =>
-        Ok(await _clients.SyncWithMsiAsync(id, cancellationToken));
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<ClientDetailsDto>> Update(Guid id, [FromBody] UpdateClientRequest request, CancellationToken cancellationToken) =>
+        Ok(await _clients.UpdateAsync(id, request, cancellationToken));
 }

@@ -7,7 +7,7 @@ namespace FinFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/contracts")]
-[Authorize(Roles = "Operator,Controller,Accountant,Administrator,Head,Treasurer")]
+[Authorize(Roles = "Employee,Administrator")]
 public class ContractsController : ControllerBase
 {
     private readonly ContractService _contracts;
@@ -29,13 +29,13 @@ public class ContractsController : ControllerBase
         Ok(await _contracts.GetAsync(id, cancellationToken));
 
     [HttpPost]
-    [Authorize(Roles = "Operator")]
+    [Authorize(Roles = "Employee")]
     public async Task<ActionResult<ContractDto>> Open([FromBody] OpenContractRequest request, CancellationToken cancellationToken) =>
         Ok(await _contracts.OpenAsync(request, cancellationToken));
 
     /// <summary>Согласие банка на досрочный возврат безотзывного вклада (бизнес-правило 8).</summary>
     [HttpPost("{id:guid}/consent")]
-    [Authorize(Roles = "Controller,Head,Administrator")]
+    [Authorize(Roles = "Employee,Administrator")]
     public async Task<ActionResult<ContractDto>> Consent(Guid id, CancellationToken cancellationToken) =>
         Ok(await _contracts.ConsentAsync(id, cancellationToken));
 

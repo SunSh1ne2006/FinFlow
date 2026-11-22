@@ -291,8 +291,6 @@ public class ClientPortalService
             .Where(p => p.Kind == ProductKind.Deposit && p.IsActive)
             .ToListAsync(cancellationToken);
 
-        var rvsr1 = await _parameters.GetValueAsync(ParameterService.RvsrByn1To3, today, ModelBankData.RvsrByn1To3Years, cancellationToken);
-        var rvsr2 = await _parameters.GetValueAsync(ParameterService.RvsrBynOver3, today, ModelBankData.RvsrBynOver3Years, cancellationToken);
         var demandRate = await _parameters.GetValueAsync(ParameterService.DemandRate, today, ModelBankData.DemandRatePercent, cancellationToken);
 
         var offers = new List<ClientOfferDto>();
@@ -343,9 +341,7 @@ public class ClientPortalService
                         IsRevocable = v.IsRevocable,
                         InterestPayoutText = v.InterestPayout.Text(),
                         CapitalizationText = v.Capitalization.Text(),
-                        IncomePer1000 = InterestCalculator.AccrueFlat(1000m, v.RatePercent, termDays, 365),
-                        RateWithinRvsr = !string.Equals(product.Currency, "BYN", StringComparison.OrdinalIgnoreCase)
-                            || v.RatePercent <= (v.TermMonths <= 36 ? rvsr1 : rvsr2)
+                        IncomePer1000 = InterestCalculator.AccrueFlat(1000m, v.RatePercent, termDays, 365)
                     };
                 }).ToList()
             });
@@ -355,8 +351,6 @@ public class ClientPortalService
         {
             Offers = offers.OrderBy(o => o.Currency).ThenByDescending(o => o.BestRate).ToList(),
             DemandRatePercent = demandRate,
-            RvsrByn1To3Years = rvsr1,
-            RvsrBynOver3Years = rvsr2,
             AsOf = today,
             Note = "Ставки указаны в процентах годовых и действуют на дату расчёта. "
                  + "Доход на 1 000 р. рассчитан по формуле простых процентов (1.5) за срок вклада."

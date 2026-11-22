@@ -14,13 +14,6 @@ public enum IdentificationStatus
     RequiresUpdate = 2
 }
 
-public enum KycRiskLevel
-{
-    Low = 1,
-    Medium = 2,
-    High = 3
-}
-
 public enum ProductKind
 {
     Deposit = 1,
@@ -77,12 +70,12 @@ public enum ContractStatus
     Closed = 5
 }
 
+/// <summary>Источник ограничения по счёту: решение банка, авторизация карты или бронирование.</summary>
 public enum HoldSource
 {
-    AisIdo = 1,
-    Bank = 2,
-    CardAuthorization = 3,
-    Booking = 4
+    Bank = 1,
+    CardAuthorization = 2,
+    Booking = 3
 }
 
 public enum HoldStatus
@@ -109,22 +102,9 @@ public enum OperationKind
 public enum OperationStatus
 {
     Draft = 0,
-    OnCheck = 1,
+    Executed = 1,
     Rejected = 2,
-    Suspended = 3,
-    OnControl = 4,
-    Approved = 5,
-    Executed = 6,
-    Posted = 7,
-    Reversed = 8
-}
-
-public enum DocumentSource
-{
-    Branch = 1,
-    Dbo = 2,
-    AisIdo = 3,
-    System = 4
+    Reversed = 3
 }
 
 public enum AccrualStatus
@@ -145,40 +125,18 @@ public enum OperationalDayStatus
 public enum DayCloseStage
 {
     Started = 1,
-    PendingRejected = 2,
-    AccrualsDone = 3,
-    PayoutsDone = 4,
-    ContractsDone = 5,
-    PostingsDone = 6,
-    Reconciled = 7,
-    Completed = 8
+    AccrualsDone = 2,
+    PayoutsDone = 3,
+    ContractsDone = 4,
+    Completed = 5
 }
 
-public enum RiskStatus
-{
-    Active = 1,
-    Mitigated = 2,
-    Closed = 3
-}
-
-public enum RiskZone
-{
-    Low = 1,
-    Moderate = 2,
-    High = 3,
-    Critical = 4
-}
-
+/// <summary>Роли сотрудников банка. Клиент банка работает в отдельном веб-кабинете без ролей системы.</summary>
 public enum RoleCode
 {
-    Operator = 1,
-    Controller = 2,
-    Accountant = 3,
-    Administrator = 4,
-    Head = 5,
-    Treasurer = 6,
-    RiskManager = 7,
-    AmlOfficer = 8
+    Employee = 1,
+    Administrator = 2,
+    Head = 3
 }
 
 /// <summary>Направление операции: поступление увеличивает остаток, списание — уменьшает.</summary>
@@ -219,13 +177,8 @@ public static class OperationKindExtensions
     public static string DisplayName(this OperationStatus status) => status switch
     {
         OperationStatus.Draft => "Черновик",
-        OperationStatus.OnCheck => "На проверке",
-        OperationStatus.Rejected => "Отказано",
-        OperationStatus.Suspended => "Приостановлена",
-        OperationStatus.OnControl => "На контроле",
-        OperationStatus.Approved => "Одобрена",
         OperationStatus.Executed => "Исполнена",
-        OperationStatus.Posted => "Отражена",
+        OperationStatus.Rejected => "Отказано",
         OperationStatus.Reversed => "Сторнирована",
         _ => status.ToString()
     };
@@ -239,14 +192,5 @@ public static class OperationKindExtensions
         ContractStatus.EarlyReturned => "Досрочно возвращён",
         ContractStatus.Closed => "Закрыт",
         _ => status.ToString()
-    };
-
-    public static string DisplayName(this RiskZone zone) => zone switch
-    {
-        RiskZone.Low => "Низкий",
-        RiskZone.Moderate => "Умеренный",
-        RiskZone.High => "Высокий",
-        RiskZone.Critical => "Критический",
-        _ => zone.ToString()
     };
 }

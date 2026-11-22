@@ -1,9 +1,8 @@
 using FinFlow.Domain.Common;
-using FinFlow.Domain.Enums;
 
 namespace FinFlow.Domain.Entities;
 
-/// <summary>Справочник параметров с датой действия (требование 16, бизнес-правило 14).</summary>
+/// <summary>Справочник параметров с датой действия (ставка налога, ставка до востребования).</summary>
 public class Parameter : BaseEntity
 {
     public string Code { get; set; }
@@ -15,39 +14,7 @@ public class Parameter : BaseEntity
     public bool IsActive { get; set; } = true;
 }
 
-/// <summary>Риск реестра R-01 – R-12 (требование 14).</summary>
-public class Risk : BaseEntity
-{
-    public string Code { get; set; }
-    public string Event { get; set; }
-    public string Cause { get; set; }
-    public string Consequence { get; set; }
-    public string Category { get; set; }
-    public string OwnerRole { get; set; }
-    public RiskStatus Status { get; set; } = RiskStatus.Active;
-    public string Mitigation { get; set; }
-    public string EarlyIndicator { get; set; }
-
-    public List<RiskAssessment> Assessments { get; set; } = new();
-
-    public RiskAssessment LatestAssessment => Assessments
-        .OrderByDescending(a => a.Date).ThenByDescending(a => a.CreatedAt).FirstOrDefault();
-}
-
-/// <summary>Версионируемая оценка риска: вероятность, денежные последствия, оценка после мероприятий.</summary>
-public class RiskAssessment : BaseEntity
-{
-    public Guid RiskId { get; set; }
-    public Risk Risk { get; set; }
-    public DateOnly Date { get; set; }
-    public decimal Probability { get; set; }
-    /// <summary>Денежная оценка последствий C, тыс. р.</summary>
-    public decimal MoneyImpact { get; set; }
-    public decimal? MitigatedProbability { get; set; }
-    public string Notes { get; set; }
-}
-
-/// <summary>Запись журнала аудита. Только вставка, хранение не менее 5 лет (требование 19).</summary>
+/// <summary>Запись журнала аудита. Только вставка, хранение не менее 5 лет.</summary>
 public class AuditRecord : BaseEntity
 {
     public DateTime At { get; set; } = DateTime.UtcNow;

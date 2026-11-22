@@ -7,7 +7,7 @@ namespace FinFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/dayclose")]
-[Authorize(Roles = "Accountant,Administrator,Head")]
+[Authorize(Roles = "Employee,Administrator")]
 public class DayCloseController : ControllerBase
 {
     private readonly DayCloseService _dayClose;
@@ -32,11 +32,4 @@ public class DayCloseController : ControllerBase
     [HttpPost("continue")]
     public async Task<ActionResult<OperationalDayDto>> Continue(CancellationToken cancellationToken) =>
         Ok(await _dayClose.ContinueAsync(cancellationToken));
-
-    [HttpGet("reconciliation")]
-    public async Task<ActionResult<ReconciliationDto>> Reconciliation([FromQuery] DateOnly? date, CancellationToken cancellationToken)
-    {
-        var actual = date ?? DateOnly.FromDateTime(DateTime.Today);
-        return Ok(await _dayClose.ReconcileAsync(actual, cancellationToken));
-    }
 }

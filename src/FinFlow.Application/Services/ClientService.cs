@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FinFlow.Application.Services;
 
-/// <summary>Ведение клиентов, анкет ПОД/ФТ и представителей (требование 1).</summary>
+/// <summary>Ведение клиентов банка: регистрация, поиск, идентификация, изменение контактных данных.</summary>
 public class ClientService
 {
     private readonly IBankDbContext _db;
@@ -16,16 +16,14 @@ public class ClientService
     private readonly IAuditWriter _audit;
     private readonly IBalanceService _balance;
     private readonly ICurrentUser _current;
-    private readonly IMsiGateway _msi;
 
-    public ClientService(IBankDbContext db, IClock clock, IAuditWriter audit, IBalanceService balance, ICurrentUser current, IMsiGateway msi)
+    public ClientService(IBankDbContext db, IClock clock, IAuditWriter audit, IBalanceService balance, ICurrentUser current)
     {
         _db = db;
         _clock = clock;
         _audit = audit;
         _balance = balance;
         _current = current;
-        _msi = msi;
     }
 
     public async Task<PagedResult<ClientListItemDto>> ListAsync(string query, int page, int pageSize, CancellationToken cancellationToken = default)
@@ -34,7 +32,6 @@ public class ClientService
         pageSize = pageSize is < 1 or > 200 ? 20 : pageSize;
 
         var source = _db.Clients
-            .Include(c => c.KycProfile)
             .Include(c => c.Accounts)
             .AsQueryable();
 
@@ -71,7 +68,7 @@ public class ClientService
             accounts.Add(account.ToListItem(_clock.Today, available, contract));
         }
 
-        return client.ToDetails(_clock.Today, accounts);
+        return client.ToDetails(accounts);
     }
 
     public async Task<ClientDetailsDto> CreateAsync(CreateClientRequest request, CancellationToken cancellationToken = default)
@@ -95,12 +92,17 @@ public class ClientService
             throw new ConflictException($"Клиент с идентификационным номером {idNumber} уже зарегистрирован.");
         }
 
-        var riskLevel = Parsing.Enum<KycRiskLevel>(request.KycRiskLevel, "уровень риска ПОД/ФТ", KycRiskLevel.Low);
+        if (type == ClientType.Individual && !request.BirthDate.HasValue)
+        {
+            throw new AppException("Для физического лица укажите дату рождения: она используется для входа в личный кабинет.");
+        }
+
         var client = new Client
         {
             Type = type,
             Name = request.Name.Trim(),
             IdNumber = idNumber,
+            BirthDate = request.BirthDate,
             Phone = request.Phone,
             Email = request.Email,
             Country = string.IsNullOrWhiteSpace(request.Country) ? "BY" : request.Country.Trim(),
@@ -112,28 +114,6 @@ public class ClientService
             CreatedAt = _clock.UtcNow
         };
 
-        if (request.UseMsi)
-        {
-            var msiData = await _msi.GetClientDataAsync(idNumber, cancellationToken);
-            if (msiData != null && msiData.Found)
-            {
-                client.Phone = string.IsNullOrWhiteSpace(client.Phone) ? msiData.Phone : client.Phone;
-                client.Email = string.IsNullOrWhiteSpace(client.Email) ? msiData.Email : client.Email;
-                client.Notes = string.IsNullOrWhiteSpace(client.Notes) ? msiData.Comment : client.Notes;
-            }
-        }
-
-        client.KycProfile = new KycProfile
-        {
-            ClientId = client.Id,
-            RiskLevel = riskLevel,
-            ReviewDate = _clock.Today,
-            Source = request.UseMsi ? "МСИ" : "ЦБУ",
-            Notes = request.Notes,
-            IsActual = true,
-            UpdatedAt = _clock.UtcNow
-        };
-
         _db.Clients.Add(client);
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.WriteAsync("ClientCreated", nameof(Client), client.Id.ToString(), null,
@@ -142,96 +122,39 @@ public class ClientService
         return await GetAsync(client.Id, cancellationToken);
     }
 
-    public async Task<ClientDetailsDto> UpdateKycAsync(Guid id, UpdateKycRequest request, CancellationToken cancellationToken = default)
+    public async Task<ClientDetailsDto> UpdateAsync(Guid id, UpdateClientRequest request, CancellationToken cancellationToken = default)
     {
+        if (request == null)
+        {
+            throw new AppException("Не переданы данные клиента.");
+        }
+
         var client = await LoadClientAsync(id, cancellationToken);
-        var kyc = client.KycProfile;
-        var old = kyc == null ? null : new { RiskLevel = kyc.RiskLevel.ToString(), kyc.ReviewDate, kyc.Notes };
+        var old = new { client.Name, client.Phone, client.Email, client.Notes, client.IdentificationStatus };
 
-        if (kyc == null)
+        if (!string.IsNullOrWhiteSpace(request.Name))
         {
-            kyc = new KycProfile { ClientId = client.Id, ReviewDate = _clock.Today, IsActual = true };
-            client.KycProfile = kyc;
-            _db.KycProfiles.Add(kyc);
+            client.Name = request.Name.Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(request?.RiskLevel))
+        if (request.BirthDate.HasValue)
         {
-            kyc.RiskLevel = Parsing.Enum<KycRiskLevel>(request.RiskLevel, "уровень риска", kyc.RiskLevel);
+            client.BirthDate = request.BirthDate;
         }
 
-        kyc.Notes = request?.Notes ?? kyc.Notes;
-        kyc.ReviewDate = request?.ReviewDate ?? _clock.Today;
-        kyc.IsActual = true;
-        kyc.UpdatedAt = _clock.UtcNow;
+        client.Phone = request.Phone ?? client.Phone;
+        client.Email = request.Email ?? client.Email;
+        client.Notes = request.Notes ?? client.Notes;
 
-        if (client.IdentificationStatus == IdentificationStatus.RequiresUpdate)
+        if (request.Identify == true && client.IdentificationStatus != IdentificationStatus.Identified)
         {
             client.IdentificationStatus = IdentificationStatus.Identified;
+            client.IdentifiedAt = _clock.UtcNow;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-        await _audit.WriteAsync("KycUpdated", nameof(KycProfile), kyc.Id.ToString(), old,
-            new { RiskLevel = kyc.RiskLevel.ToString(), kyc.ReviewDate, kyc.Notes }, cancellationToken);
-
-        return await GetAsync(id, cancellationToken);
-    }
-
-    public async Task<RepresentativeDto> AddRepresentativeAsync(Guid clientId, AddRepresentativeRequest request, CancellationToken cancellationToken = default)
-    {
-        if (request == null || string.IsNullOrWhiteSpace(request.FullName))
-        {
-            throw new AppException("Укажите ФИО представителя.");
-        }
-
-        if (request.ValidTo < request.ValidFrom)
-        {
-            throw new AppException("Дата окончания доверенности не может быть раньше даты начала.");
-        }
-
-        var client = await _db.Clients.FirstOrDefaultAsync(c => c.Id == clientId, cancellationToken);
-        if (client == null)
-        {
-            throw new NotFoundException("Клиент не найден.");
-        }
-
-        var representative = new Representative
-        {
-            ClientId = clientId,
-            FullName = request.FullName.Trim(),
-            IdNumber = request.IdNumber,
-            Authority = request.Authority,
-            ValidFrom = request.ValidFrom,
-            ValidTo = request.ValidTo
-        };
-
-        _db.Representatives.Add(representative);
-        await _db.SaveChangesAsync(cancellationToken);
-        await _audit.WriteAsync("RepresentativeAdded", nameof(Representative), representative.Id.ToString(), null,
-            new { representative.FullName, representative.ValidFrom, representative.ValidTo }, cancellationToken);
-
-        return representative.ToDto(_clock.Today);
-    }
-
-    /// <summary>Получение данных клиента из МСИ с его согласия (требование 1, постановление № 497).</summary>
-    public async Task<ClientDetailsDto> SyncWithMsiAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var client = await LoadClientAsync(id, cancellationToken);
-        var msiData = await _msi.GetClientDataAsync(client.IdNumber, cancellationToken);
-
-        if (msiData == null || !msiData.Found)
-        {
-            throw new AppException("Данные клиента в МСИ не найдены.");
-        }
-
-        client.Phone = string.IsNullOrWhiteSpace(msiData.Phone) ? client.Phone : msiData.Phone;
-        client.Email = string.IsNullOrWhiteSpace(msiData.Email) ? client.Email : msiData.Email;
-        client.IdentificationStatus = IdentificationStatus.Identified;
-        client.IdentifiedAt ??= _clock.UtcNow;
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await _audit.WriteAsync("MsiSync", nameof(Client), client.Id.ToString(), null,
-            new { msiData.FullName, msiData.Phone, msiData.Email }, cancellationToken);
+        await _audit.WriteAsync("ClientUpdated", nameof(Client), client.Id.ToString(), old,
+            new { client.Name, client.Phone, client.Email, client.Notes, client.IdentificationStatus }, cancellationToken);
 
         return await GetAsync(id, cancellationToken);
     }
@@ -239,8 +162,6 @@ public class ClientService
     private async Task<Client> LoadClientAsync(Guid id, CancellationToken cancellationToken)
     {
         var client = await _db.Clients
-            .Include(c => c.KycProfile)
-            .Include(c => c.Representatives)
             .Include(c => c.Accounts)
             .ThenInclude(a => a.Numbers)
             .Include(c => c.Accounts)

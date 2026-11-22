@@ -7,7 +7,7 @@ namespace FinFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/audit")]
-[Authorize(Roles = "Administrator,Head")]
+[Authorize(Roles = "Administrator")]
 public class AuditController : ControllerBase
 {
     private readonly AuditService _audit;

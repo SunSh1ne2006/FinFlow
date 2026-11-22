@@ -22,7 +22,7 @@
 
             <Border Style="{StaticResource CardBorder}">
                 <StackPanel>
-                    <TextBlock Text="АРЕСТЫ И РЕЗЕРВЫ (ТРЕБОВАНИЯ 1, 3)" Style="{StaticResource SectionCaption}" />
+                    <TextBlock Text="АРЕСТЫ И РЕЗЕРВЫ" Style="{StaticResource SectionCaption}" />
                     <DataGrid ItemsSource="{Binding Holds}" SelectedItem="{Binding SelectedHold}" AutoGenerateColumns="False"
                               IsReadOnly="True" Height="180" HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
                         <DataGrid.Columns>

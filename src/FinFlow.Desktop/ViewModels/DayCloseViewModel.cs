@@ -12,7 +12,6 @@ public class DayCloseViewModel : ViewModelBase
 {
     private readonly Session _session;
     private OperationalDayDto _today;
-    private ReconciliationDto _reconciliation;
 
     public DayCloseViewModel(Session session)
     {
@@ -22,7 +21,6 @@ public class DayCloseViewModel : ViewModelBase
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         StartCommand = new AsyncRelayCommand(StartAsync, () => _today == null || _today.Status != "Closed");
         ContinueCommand = new AsyncRelayCommand(ContinueAsync, () => _today != null && _today.Status != "Closed");
-        ReconcileCommand = new AsyncRelayCommand(ReconcileAsync);
     }
 
     public ObservableCollection<OperationalDayDto> History { get; }
@@ -41,38 +39,21 @@ public class DayCloseViewModel : ViewModelBase
         }
     }
 
-    public ReconciliationDto Reconciliation
-    {
-        get => _reconciliation;
-        private set
-        {
-            if (Set(ref _reconciliation, value))
-            {
-                OnPropertyChanged(nameof(ReconciliationCaption));
-            }
-        }
-    }
-
     public string TodayCaption => Today == null
         ? "Операционный день не открыт."
         : $"Операционный день {Today.Date:dd.MM.yyyy} · {Today.Status} · этап: {Today.StageText}";
 
     public string TotalsCaption => Today == null
         ? string.Empty
-        : $"Начислено процентов: {Today.InterestAccrued:N2} р. · удержано налога: {Today.TaxWithheld:N2} р. · начислений: {Today.AccrualCount} · проводок: {Today.PostingCount} · отклонено операций: {Today.RejectedOperations}";
+        : $"Начислено процентов: {Today.InterestAccrued:N2} р. · удержано налога: {Today.TaxWithheld:N2} р. · начислений: {Today.AccrualCount} · отклонено операций: {Today.RejectedOperations}";
 
     public string ErrorCaption => string.IsNullOrWhiteSpace(Today?.LastError)
         ? string.Empty
         : "Последняя ошибка: " + Today.LastError;
 
-    public string ReconciliationCaption => Reconciliation == null
-        ? "Сверка не выполнялась."
-        : $"Сверка {Reconciliation.Date:dd.MM.yyyy}: дебет {Reconciliation.DebitTotal:N2}, кредит {Reconciliation.CreditTotal:N2}, расхождение {Reconciliation.Difference:N2}. {Reconciliation.Message}";
-
     public ICommand LoadCommand { get; }
     public ICommand StartCommand { get; }
     public ICommand ContinueCommand { get; }
-    public ICommand ReconcileCommand { get; }
 
     public async Task RefreshAsync() => await LoadAsync();
 
@@ -99,7 +80,7 @@ public class DayCloseViewModel : ViewModelBase
         {
             await _session.Api.PostAsync<OperationalDayDto>("api/dayclose/start");
             await FetchAsync();
-            StatusMessage = "Закрытие дня запущено: отклонение неподтверждённых операций.";
+            StatusMessage = "Закрытие дня выполнено: начисления, выплаты и пролонгация обработаны.";
         });
     }
 
@@ -113,12 +94,4 @@ public class DayCloseViewModel : ViewModelBase
         });
     }
 
-    private async Task ReconcileAsync()
-    {
-        await RunAsync(async () =>
-        {
-            Reconciliation = await _session.Api.GetAsync<ReconciliationDto>("api/dayclose/reconciliation");
-            StatusMessage = Reconciliation?.IsBalanced == true ? "Сверка успешна: расхождений нет." : "Сверка выявила расхождение.";
-        });
-    }
 }

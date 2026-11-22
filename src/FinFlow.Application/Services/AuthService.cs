@@ -7,13 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FinFlow.Application.Services;
 
-/// <summary>Аутентификация, блокировка после пяти неудачных попыток, второй фактор (НФТ-8).</summary>
+/// <summary>Аутентификация сотрудников банка и блокировка после пяти неудачных попыток.</summary>
 public class AuthService
 {
     public const int MaxFailedAttempts = 5;
-    /// <summary>Демонстрационный код второго фактора (в продуктивной среде — внешний провайдер).</summary>
-    public const string DemoSecondFactor = "123456";
-
     private readonly IBankDbContext _db;
     private readonly IPasswordHasher _hasher;
     private readonly ITokenStore _tokens;
@@ -66,23 +63,6 @@ public class AuthService
             await _audit.WriteAsync("LoginFailed", nameof(User), user.Id.ToString(),
                 null, new { user.Login, user.FailedAttempts, user.IsBlocked }, cancellationToken);
             throw new AppException("Неверный логин или пароль.", 401);
-        }
-
-        if (user.TwoFactorEnabled)
-        {
-            if (string.IsNullOrWhiteSpace(request.SecondFactor))
-            {
-                return new LoginResponse
-                {
-                    SecondFactorRequired = true,
-                    User = user.ToDto()
-                };
-            }
-
-            if (!string.Equals(request.SecondFactor.Trim(), DemoSecondFactor, StringComparison.Ordinal))
-            {
-                throw new AppException("Неверный код второго фактора.", 401);
-            }
         }
 
         user.FailedAttempts = 0;

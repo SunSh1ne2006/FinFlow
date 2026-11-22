@@ -91,10 +91,6 @@ public class OperationService
         }
 
         var amount = Money.Round(request.Amount);
-        if (amount <= 0m)
-        {
-            throw new AppException("Сумма операции должна быть больше нуля.");
-        }
 
         Contract contract = null;
         if (request.ContractId.HasValue)
@@ -158,6 +154,13 @@ public class OperationService
                         + $"проценты {quote.DemandInterest:0.00} р., удержано излишне выплаченных {quote.ExcessToWithhold:0.00} р.";
         }
 
+        if (amount <= 0m)
+        {
+            throw new AppException("Сумма операции должна быть больше нуля.");
+        }
+
+        var isClosurePayout = kind == OperationKind.EarlyReturn;
+
         var sequence = await _db.Operations.CountAsync(cancellationToken) + 1;
         var operation = new Operation
         {
@@ -188,7 +191,7 @@ public class OperationService
             operation.CheckedHolds = snapshot.HoldsAmount;
             operation.CheckedAvailable = snapshot.AvailableBalance;
 
-            if (kind.IsDebit() && !BalanceCalculator.CanDebit(amount, snapshot.AvailableBalance))
+            if (kind.IsDebit() && !isClosurePayout && !BalanceCalculator.CanDebit(amount, snapshot.AvailableBalance))
             {
                 operation.Status = OperationStatus.Rejected;
                 operation.RejectionReason =
@@ -197,7 +200,7 @@ public class OperationService
             else
             {
                 var minBalance = contract?.ProductVersion?.MinBalance ?? 0m;
-                if (kind.IsDebit() && minBalance > 0m && snapshot.Balance - amount < minBalance)
+                if (kind.IsDebit() && !isClosurePayout && minBalance > 0m && snapshot.Balance - amount < minBalance)
                 {
                     operation.Status = OperationStatus.Rejected;
                     operation.RejectionReason = $"Нарушен неснижаемый остаток {minBalance:0.00} р.";
@@ -429,6 +432,7 @@ public class OperationService
                 contract.ClosedAt = _clock.UtcNow;
                 contract.Principal = 0m;
                 contract.AccruedInterest = 0m;
+                account.Balance = 0m;
                 account.Status = AccountStatus.Closed;
                 account.ClosedAt = _clock.UtcNow;
                 break;

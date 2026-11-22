@@ -166,7 +166,12 @@ public class OperationsViewModel : ViewModelBase
             return;
         }
 
-        if (!AccountViewModel.TryParseAmount(AmountText, out var amount) || amount <= 0)
+        decimal amount;
+        if (SelectedKind.Code == "EarlyReturn")
+        {
+            amount = 1m;
+        }
+        else if (!AccountViewModel.TryParseAmount(AmountText, out amount) || amount <= 0)
         {
             StatusMessage = "Укажите положительную сумму операции.";
             return;

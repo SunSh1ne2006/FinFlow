@@ -96,34 +96,4 @@ public class InterestService
         contract.AccruedInterest += amount;
         return accrual;
     }
-
-    /// <summary>Оценка процентов к выплате за день по портфелю — для прогноза ликвидности.</summary>
-    public async Task<decimal> EstimateDailyInterestAsync(DateOnly date, CancellationToken cancellationToken = default)
-    {
-        var accrued = await _db.InterestAccruals
-            .Where(a => a.AccrualDate == date)
-            .SumAsync(a => (decimal?)a.Amount, cancellationToken) ?? 0m;
-
-        if (accrued > 0m)
-        {
-            return accrued;
-        }
-
-        var contracts = await _db.Contracts
-            .Include(c => c.ProductVersion)
-            .ThenInclude(v => v.Product)
-            .Include(c => c.Account)
-            .Where(c => c.Status == ContractStatus.Active || c.Status == ContractStatus.Prolonged)
-            .ToListAsync(cancellationToken);
-
-        var total = 0m;
-        foreach (var contract in contracts)
-        {
-            var rate = await ResolveRateAsync(contract, date, cancellationToken);
-            var yearDays = contract.ProductVersion?.ResolveDayBase(date) ?? InterestCalculator.YearDays(date);
-            total += InterestCalculator.AccrueFlat(AccrualBase(contract), rate, 1, yearDays);
-        }
-
-        return Money.Round(total);
-    }
 }

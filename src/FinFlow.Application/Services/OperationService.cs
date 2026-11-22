@@ -130,6 +130,11 @@ public class OperationService
             }
 
             var version = contract.ProductVersion;
+            if (version.Product?.Kind != ProductKind.Deposit)
+            {
+                throw new AppException("Досрочный возврат возможен только по договору вклада.");
+            }
+
             if (version.RequiresBankConsentForEarlyReturn && !contract.HasEarlyReturnConsent)
             {
                 throw new ConflictException(

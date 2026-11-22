@@ -44,6 +44,8 @@ public class ClientsViewModel : ViewModelBase
         CreateClientCommand = new AsyncRelayCommand(CreateClientAsync);
         OpenAccountCommand = new RelayCommand(OpenAccountInCard, () => _selectedAccount != null);
         OpenContractCommand = new AsyncRelayCommand(OpenContractAsync, () => _details != null && _selectedProduct != null);
+        ConsentCommand = new AsyncRelayCommand(ConsentAsync, () =>
+            _selectedAccount?.NeedsEarlyReturnConsent == true);
     }
 
     public event Action<AccountListItemDto> AccountSelected;
@@ -153,6 +155,7 @@ public class ClientsViewModel : ViewModelBase
     public ICommand CreateClientCommand { get; }
     public ICommand OpenAccountCommand { get; }
     public ICommand OpenContractCommand { get; }
+    public ICommand ConsentCommand { get; }
 
     public async Task RefreshAsync()
     {
@@ -316,6 +319,23 @@ public class ClientsViewModel : ViewModelBase
             await LoadListAsync(_page);
             OpenAmountText = null;
             StatusMessage = "Договор открыт, счёт и операция первоначального взноса созданы.";
+        });
+    }
+
+    private async Task ConsentAsync()
+    {
+        var account = SelectedAccount;
+        if (account?.ContractId == null || Details == null)
+        {
+            return;
+        }
+
+        var clientId = Details.Id;
+        await RunAsync(async () =>
+        {
+            await _session.Api.PostAsync<ContractDto>($"api/contracts/{account.ContractId}/consent");
+            await FetchDetailsAsync(clientId);
+            StatusMessage = "Согласие банка на досрочный возврат безотзывного вклада оформлено.";
         });
     }
 

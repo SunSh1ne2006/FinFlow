@@ -15,6 +15,8 @@ public class AccountListItemDto
     public string Status { get; set; }
     public string StatusText { get; set; }
     public string ContractNumber { get; set; }
+    public Guid? ContractId { get; set; }
+    public bool NeedsEarlyReturnConsent { get; set; }
     public string ProductName { get; set; }
     public decimal AvailableBalance { get; set; }
 }

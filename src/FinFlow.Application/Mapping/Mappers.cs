@@ -94,6 +94,10 @@ public static class Mappers
             Status = account.Status.ToString(),
             StatusText = account.Status.Text(),
             ContractNumber = contract?.Number,
+            ContractId = contract?.Id,
+            NeedsEarlyReturnConsent = contract != null
+                && contract.ProductVersion?.IsRevocable == false
+                && !contract.HasEarlyReturnConsent,
             ProductName = contract?.ProductVersion?.Product?.Name,
             AvailableBalance = availableBalance
         };

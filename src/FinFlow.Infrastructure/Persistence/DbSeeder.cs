@@ -228,9 +228,9 @@ public static class DbSeeder
                 IsResident = true,
                 Phone = "+375 (29) 000-00-00",
                 IdentificationStatus = IdentificationStatus.Identified,
-                IdentifiedAt = DateTime.UtcNow.AddDays(-30),
+                IdentifiedAt = DateTime.UtcNow.AddDays(-10),
                 CreatedBy = createdBy?.Id,
-                CreatedAt = DateTime.UtcNow.AddDays(-30)
+                CreatedAt = DateTime.UtcNow.AddDays(-10)
             };
         }
 

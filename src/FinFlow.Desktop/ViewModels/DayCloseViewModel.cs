@@ -7,7 +7,7 @@ using FinFlow.Desktop.Infrastructure;
 
 namespace FinFlow.Desktop.ViewModels;
 
-/// <summary>Закрытие операционного дня и сверка (требования 10, 11, 19).</summary>
+/// <summary>Закрытие операционного дня: начисления, выплаты, пролонгация и возврат вкладов.</summary>
 public class DayCloseViewModel : ViewModelBase
 {
     private readonly Session _session;

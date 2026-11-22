@@ -71,47 +71,4 @@ public class TaxService
         _db.TaxWithholdings.Add(withholding);
         return withholding;
     }
-
-    public async Task<TaxReportDto> ReportAsync(DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default)
-    {
-        var rows = await (
-            from withholding in _db.TaxWithholdings
-            join accrual in _db.InterestAccruals on withholding.AccrualId equals accrual.Id
-            join contract in _db.Contracts on withholding.ContractId equals contract.Id
-            join client in _db.Clients on contract.ClientId equals client.Id
-            join account in _db.Accounts on contract.AccountId equals account.Id
-            where accrual.AccrualDate >= fromDate && accrual.AccrualDate <= toDate
-            orderby accrual.AccrualDate descending
-            select new
-            {
-                ContractNumber = contract.Number,
-                ClientName = client.Name,
-                Currency = account.Currency,
-                Accrued = accrual.Amount,
-                TaxableBase = withholding.TaxBase,
-                Tax = withholding.Amount,
-                IsExempt = withholding.IsExempt,
-                Reason = withholding.ExemptionReason
-            }).ToListAsync(cancellationToken);
-
-        return new TaxReportDto
-        {
-            From = fromDate,
-            To = toDate,
-            TotalAccrued = Money.Round(rows.Sum(r => r.Accrued)),
-            TotalTaxable = Money.Round(rows.Sum(r => r.TaxableBase)),
-            TotalTax = Money.Round(rows.Sum(r => r.Tax)),
-            Rows = rows.Select(r => new TaxReportRowDto
-            {
-                ContractNumber = r.ContractNumber,
-                ClientName = r.ClientName,
-                Currency = r.Currency,
-                Accrued = r.Accrued,
-                TaxableBase = r.TaxableBase,
-                Tax = r.Tax,
-                IsExempt = r.IsExempt,
-                ExemptionReason = r.Reason
-            }).ToList()
-        };
-    }
 }

@@ -9,7 +9,7 @@ using FinFlow.Desktop.Infrastructure;
 
 namespace FinFlow.Desktop.ViewModels;
 
-/// <summary>Ведение клиентов: поиск, анкета ПОД/ФТ, счета, представители (требования 1, 2).</summary>
+/// <summary>Работа сотрудника с клиентами: поиск, регистрация, открытие счетов и вкладов.</summary>
 public class ClientsViewModel : ViewModelBase
 {
     private readonly Session _session;
@@ -20,37 +20,41 @@ public class ClientsViewModel : ViewModelBase
     private ClientListItemDto _selectedClient;
     private ClientDetailsDto _details;
     private AccountListItemDto _selectedAccount;
-    private string _kycRiskLevel;
-    private string _kycNotes;
-    private string _repFullName;
-    private string _repIdNumber;
-    private string _repAuthority;
-    private DateTime? _repValidFrom = DateTime.Today;
-    private DateTime? _repValidTo = DateTime.Today.AddYears(1);
+
+    private string _newType = "Individual";
+    private string _newName;
+    private string _newIdNumber;
+    private DateTime? _newBirthDate;
+    private string _newPhone;
+    private string _newEmail;
+
+    private ProductVersionOption _selectedProduct;
+    private string _openAmountText;
 
     public ClientsViewModel(Session session)
     {
         _session = session;
         Clients = new ObservableCollection<ClientListItemDto>();
         Accounts = new ObservableCollection<AccountListItemDto>();
-        Representatives = new ObservableCollection<RepresentativeDto>();
+        Products = new ObservableCollection<ProductVersionOption>();
 
         SearchCommand = new AsyncRelayCommand(() => LoadListAsync(1));
         NextPageCommand = new AsyncRelayCommand(() => LoadListAsync(_page + 1), () => _page * _pageSize < _total);
         PrevPageCommand = new AsyncRelayCommand(() => LoadListAsync(_page - 1), () => _page > 1);
-        SaveKycCommand = new AsyncRelayCommand(SaveKycAsync, () => _details != null);
-        MsiSyncCommand = new AsyncRelayCommand(MsiSyncAsync, () => _details != null);
-        AddRepresentativeCommand = new AsyncRelayCommand(AddRepresentativeAsync, () => _details != null);
-        OpenAccountCommand = new RelayCommand(OpenAccount, () => _selectedAccount != null);
+        CreateClientCommand = new AsyncRelayCommand(CreateClientAsync);
+        OpenAccountCommand = new RelayCommand(OpenAccountInCard, () => _selectedAccount != null);
+        OpenContractCommand = new AsyncRelayCommand(OpenContractAsync, () => _details != null && _selectedProduct != null);
+        ConsentCommand = new AsyncRelayCommand(ConsentAsync, () =>
+            _selectedAccount?.NeedsEarlyReturnConsent == true);
     }
 
     public event Action<AccountListItemDto> AccountSelected;
 
     public ObservableCollection<ClientListItemDto> Clients { get; }
     public ObservableCollection<AccountListItemDto> Accounts { get; }
-    public ObservableCollection<RepresentativeDto> Representatives { get; }
+    public ObservableCollection<ProductVersionOption> Products { get; }
 
-    public List<string> RiskLevels { get; } = new() { "Low", "Medium", "High" };
+    public List<string> ClientTypes { get; } = new() { "Individual", "LegalEntity", "Entrepreneur" };
 
     public string SearchText
     {
@@ -92,63 +96,74 @@ public class ClientsViewModel : ViewModelBase
     public string ClientCaption => Details == null ? "Клиент не выбран" : Details.Name;
 
     public string ClientInfo => Details == null
-        ? "Выберите клиента в списке слева."
-        : $"{Details.TypeText} · {Details.IdNumber} · {Details.IdentificationStatus} · риск {Details.KycRiskLevel} · счетов: {Details.AccountsCount}";
+        ? "Выберите клиента в списке слева или зарегистрируйте нового."
+        : $"{Details.TypeText} · {Details.IdNumber} · {Details.IdentificationStatusText} · счетов: {Details.AccountsCount}";
 
     public string PageCaption => _total == 0 ? "Нет записей" : $"Страница {_page} · всего {_total}";
 
-    public string KycRiskLevel
+    public string NewType
     {
-        get => _kycRiskLevel;
-        set => Set(ref _kycRiskLevel, value);
+        get => _newType;
+        set => Set(ref _newType, value);
     }
 
-    public string KycNotes
+    public string NewName
     {
-        get => _kycNotes;
-        set => Set(ref _kycNotes, value);
+        get => _newName;
+        set => Set(ref _newName, value);
     }
 
-    public string RepFullName
+    public string NewIdNumber
     {
-        get => _repFullName;
-        set => Set(ref _repFullName, value);
+        get => _newIdNumber;
+        set => Set(ref _newIdNumber, value);
     }
 
-    public string RepIdNumber
+    public DateTime? NewBirthDate
     {
-        get => _repIdNumber;
-        set => Set(ref _repIdNumber, value);
+        get => _newBirthDate;
+        set => Set(ref _newBirthDate, value);
     }
 
-    public string RepAuthority
+    public string NewPhone
     {
-        get => _repAuthority;
-        set => Set(ref _repAuthority, value);
+        get => _newPhone;
+        set => Set(ref _newPhone, value);
     }
 
-    public DateTime? RepValidFrom
+    public string NewEmail
     {
-        get => _repValidFrom;
-        set => Set(ref _repValidFrom, value);
+        get => _newEmail;
+        set => Set(ref _newEmail, value);
     }
 
-    public DateTime? RepValidTo
+    public ProductVersionOption SelectedProduct
     {
-        get => _repValidTo;
-        set => Set(ref _repValidTo, value);
+        get => _selectedProduct;
+        set => Set(ref _selectedProduct, value);
+    }
+
+    public string OpenAmountText
+    {
+        get => _openAmountText;
+        set => Set(ref _openAmountText, value);
     }
 
     public ICommand SearchCommand { get; }
     public ICommand NextPageCommand { get; }
     public ICommand PrevPageCommand { get; }
-    public ICommand SaveKycCommand { get; }
-    public ICommand MsiSyncCommand { get; }
-    public ICommand AddRepresentativeCommand { get; }
+    public ICommand CreateClientCommand { get; }
     public ICommand OpenAccountCommand { get; }
+    public ICommand OpenContractCommand { get; }
+    public ICommand ConsentCommand { get; }
 
     public async Task RefreshAsync()
     {
+        if (Products.Count == 0)
+        {
+            await LoadProductsAsync();
+        }
+
         if (Details != null)
         {
             await LoadDetailsAsync(Details.Id);
@@ -157,6 +172,27 @@ public class ClientsViewModel : ViewModelBase
         {
             await LoadListAsync(_page);
         }
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        await RunAsync(async () =>
+        {
+            var products = await _session.Api.GetAsync<List<ProductDto>>("api/products?kind=Deposit");
+            var current = await _session.Api.GetAsync<List<ProductDto>>("api/products?kind=CurrentAccount");
+
+            Products.Clear();
+            foreach (var product in current.Concat(products))
+            {
+                var version = product.Versions?.FirstOrDefault(v => v.IsApproved);
+                if (version != null)
+                {
+                    Products.Add(ProductVersionOption.Create(product, version));
+                }
+            }
+
+            SelectedProduct = Products.FirstOrDefault();
+        });
     }
 
     private async Task LoadListAsync(int page)
@@ -202,81 +238,108 @@ public class ClientsViewModel : ViewModelBase
         {
             Accounts.Add(account);
         }
-
-        Representatives.Clear();
-        foreach (var representative in details.Representatives ?? Array.Empty<RepresentativeDto>())
-        {
-            Representatives.Add(representative);
-        }
-
-        KycRiskLevel = details.Kyc?.RiskLevel ?? details.KycRiskLevel;
-        KycNotes = details.Kyc?.Notes;
     }
 
-    private async Task SaveKycAsync()
+    private async Task CreateClientAsync()
     {
-        if (Details == null)
+        if (string.IsNullOrWhiteSpace(NewName) || string.IsNullOrWhiteSpace(NewIdNumber))
         {
+            StatusMessage = "Укажите ФИО (наименование) и идентификационный номер.";
             return;
         }
 
         await RunAsync(async () =>
         {
-            var updated = await _session.Api.PutAsync<ClientDetailsDto>(
-                $"api/clients/{Details.Id}/kyc",
-                new UpdateKycRequest { RiskLevel = KycRiskLevel, Notes = KycNotes });
-            Details = updated;
-            StatusMessage = "Анкета ПОД/ФТ обновлена.";
+            var created = await _session.Api.PostAsync<ClientDetailsDto>("api/clients", new CreateClientRequest
+            {
+                Type = NewType,
+                Name = NewName.Trim(),
+                IdNumber = NewIdNumber.Trim(),
+                BirthDate = NewBirthDate.HasValue ? DateOnly.FromDateTime(NewBirthDate.Value) : null,
+                Phone = NewPhone?.Trim(),
+                Email = NewEmail?.Trim()
+            });
+
+            NewName = null;
+            NewIdNumber = null;
+            NewBirthDate = null;
+            NewPhone = null;
+            NewEmail = null;
+
+            await LoadListAsync(1);
+            Details = created;
+            SelectedClient = Clients.FirstOrDefault(c => c.Id == created.Id);
+            StatusMessage = $"Клиент {created.Name} зарегистрирован и идентифицирован.";
         });
     }
 
-    private async Task MsiSyncAsync()
+    private async Task OpenContractAsync()
     {
-        if (Details == null)
+        if (Details == null || SelectedProduct == null)
         {
             return;
         }
 
-        await RunAsync(async () =>
+        if (!AccountViewModel.TryParseAmount(OpenAmountText, out var amount) || amount < 0)
         {
-            var updated = await _session.Api.PostAsync<ClientDetailsDto>($"api/clients/{Details.Id}/msi-sync");
-            Details = updated;
-            StatusMessage = "Данные синхронизированы с МСИ.";
-        });
-    }
-
-    private async Task AddRepresentativeAsync()
-    {
-        if (Details == null)
-        {
+            StatusMessage = "Укажите неотрицательную сумму.";
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(RepFullName))
+        if (amount < SelectedProduct.MinAmount)
         {
-            StatusMessage = "Укажите ФИО представителя.";
+            StatusMessage = $"Минимальная сумма по продукту – {SelectedProduct.MinAmount:N2} {SelectedProduct.Currency}.";
             return;
         }
 
         var clientId = Details.Id;
         await RunAsync(async () =>
         {
-            var request = new AddRepresentativeRequest
+            if (SelectedProduct.IsCurrentAccount)
             {
-                FullName = RepFullName.Trim(),
-                IdNumber = RepIdNumber?.Trim(),
-                Authority = RepAuthority?.Trim(),
-                ValidFrom = DateOnly.FromDateTime(RepValidFrom ?? DateTime.Today),
-                ValidTo = DateOnly.FromDateTime(RepValidTo ?? DateTime.Today.AddYears(1))
-            };
+                await _session.Api.PostAsync<AccountDetailsDto>("api/accounts", new OpenAccountRequest
+                {
+                    ClientId = clientId,
+                    ProductId = SelectedProduct.ProductId,
+                    Currency = SelectedProduct.Currency,
+                    InitialAmount = amount
+                });
+            }
+            else
+            {
+                await _session.Api.PostAsync<ContractDto>("api/contracts", new OpenContractRequest
+                {
+                    ClientId = clientId,
+                    ProductVersionId = SelectedProduct.VersionId,
+                    Amount = amount
+                });
+            }
 
-            await _session.Api.PostAsync<RepresentativeDto>($"api/clients/{clientId}/representatives", request);
             await FetchDetailsAsync(clientId);
-            StatusMessage = "Представитель добавлен.";
+            await LoadListAsync(_page);
+            OpenAmountText = null;
+            StatusMessage = "Договор открыт, счёт и операция первоначального взноса созданы.";
         });
     }
 
-    private void OpenAccount()
+    private async Task ConsentAsync()
+    {
+        var account = SelectedAccount;
+        if (account?.ContractId == null || Details == null)
+        {
+            return;
+        }
+
+        var clientId = Details.Id;
+        await RunAsync(async () =>
+        {
+            await _session.Api.PostAsync<ContractDto>($"api/contracts/{account.ContractId}/consent");
+            await FetchDetailsAsync(clientId);
+            StatusMessage = "Согласие банка на досрочный возврат безотзывного вклада оформлено.";
+        });
+    }
+
+    private void OpenAccountInCard()
     {
         if (SelectedAccount == null)
         {

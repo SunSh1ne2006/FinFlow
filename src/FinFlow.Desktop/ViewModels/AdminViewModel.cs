@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using FinFlow.Contracts;
@@ -8,63 +7,31 @@ using FinFlow.Desktop.Infrastructure;
 
 namespace FinFlow.Desktop.ViewModels;
 
-/// <summary>Административные функции: пользователи, параметры, журнал аудита (требования 16, 23).</summary>
+/// <summary>Администрирование: учётные записи сотрудников и журнал аудита.</summary>
 public class AdminViewModel : ViewModelBase
 {
     private readonly Session _session;
-    private ParameterDto _selectedParameter;
-    private string _parameterValueText;
-    private string _parameterName;
     private UserDto _selectedUser;
     private string _newLogin;
     private string _newFullName;
     private string _newPassword;
-    private string _newRole = "Operator";
-    private bool _newTwoFactor;
+    private string _newRole = "Employee";
 
     public AdminViewModel(Session session)
     {
         _session = session;
-        Parameters = new ObservableCollection<ParameterDto>();
         Audit = new ObservableCollection<AuditRecordDto>();
         Users = new ObservableCollection<UserDto>();
-        Roles = new List<string> { "Operator", "Controller", "Accountant", "Administrator", "Head", "Treasurer", "RiskManager", "AmlOfficer" };
+        Roles = new List<string> { "Employee", "Administrator", "Head" };
 
         RefreshCommand = new AsyncRelayCommand(LoadAsync);
-        SetParameterCommand = new AsyncRelayCommand(SetParameterAsync, () => _selectedParameter != null);
         CreateUserCommand = new AsyncRelayCommand(CreateUserAsync);
         BlockUserCommand = new AsyncRelayCommand(BlockUserAsync, () => _selectedUser != null);
     }
 
-    public ObservableCollection<ParameterDto> Parameters { get; }
     public ObservableCollection<AuditRecordDto> Audit { get; }
     public ObservableCollection<UserDto> Users { get; }
     public List<string> Roles { get; }
-
-    public ParameterDto SelectedParameter
-    {
-        get => _selectedParameter;
-        set
-        {
-            if (Set(ref _selectedParameter, value))
-            {
-                ParameterValueText = value?.Value.ToString("0.####");
-                ParameterName = value?.Name;
-            }
-        }
-    }
-
-    public string ParameterValueText
-    {
-        get => _parameterValueText;
-        set => Set(ref _parameterValueText, value);
-    }
-
-    public string ParameterName
-    {
-        get => _parameterName;
-        set => Set(ref _parameterName, value);
-    }
 
     public UserDto SelectedUser
     {
@@ -96,14 +63,7 @@ public class AdminViewModel : ViewModelBase
         set => Set(ref _newRole, value);
     }
 
-    public bool NewTwoFactor
-    {
-        get => _newTwoFactor;
-        set => Set(ref _newTwoFactor, value);
-    }
-
     public ICommand RefreshCommand { get; }
-    public ICommand SetParameterCommand { get; }
     public ICommand CreateUserCommand { get; }
     public ICommand BlockUserCommand { get; }
 
@@ -116,13 +76,6 @@ public class AdminViewModel : ViewModelBase
 
     private async Task FetchAsync()
     {
-        var parameters = await _session.Api.GetAsync<List<ParameterDto>>("api/parameters");
-        Parameters.Clear();
-        foreach (var parameter in parameters)
-        {
-            Parameters.Add(parameter);
-        }
-
         var audit = await _session.Api.GetAsync<PagedResult<AuditRecordDto>>("api/audit?page=1&pageSize=100");
         Audit.Clear();
         foreach (var record in audit.Items)
@@ -136,33 +89,6 @@ public class AdminViewModel : ViewModelBase
         {
             Users.Add(user);
         }
-    }
-
-    private async Task SetParameterAsync()
-    {
-        if (SelectedParameter == null)
-        {
-            return;
-        }
-
-        if (!AccountViewModel.TryParseAmount(ParameterValueText, out var value))
-        {
-            StatusMessage = "Значение параметра должно быть числом.";
-            return;
-        }
-
-        await RunAsync(async () =>
-        {
-            await _session.Api.PostAsync<ParameterDto>("api/parameters", new SetParameterRequest
-            {
-                Code = SelectedParameter.Code,
-                Name = string.IsNullOrWhiteSpace(ParameterName) ? SelectedParameter.Name : ParameterName,
-                Unit = SelectedParameter.Unit,
-                Value = value
-            });
-            await FetchAsync();
-            StatusMessage = "Параметр сохранён с новой датой действия; предыдущее значение осталось в истории.";
-        });
     }
 
     private async Task CreateUserAsync()
@@ -180,9 +106,9 @@ public class AdminViewModel : ViewModelBase
                 Login = NewLogin.Trim(),
                 FullName = NewFullName.Trim(),
                 Password = NewPassword,
-                Role = NewRole,
-                TwoFactorEnabled = NewTwoFactor
+                Role = NewRole
             });
+
             NewLogin = null;
             NewFullName = null;
             NewPassword = null;

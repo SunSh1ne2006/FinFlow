@@ -8,9 +8,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FinFlow.Infrastructure.Persistence;
 
 /// <summary>
-/// Начальное заполнение базы: роли, пользователи, справочник параметров, продукты с версиями условий,
-/// модельный портфель клиентов и счетов, реестр рисков R-01 – R-12, демонстрационные операции.
-/// Все количественные характеристики — модельные допущения п. 1.3–1.9 пояснительной записки.
+/// Начальное заполнение базы: роли, сотрудники, параметры расчёта, продукты с версиями условий,
+/// клиенты, счета, вклады, ограничения и демонстрационные операции.
 /// </summary>
 public static class DbSeeder
 {
@@ -31,11 +30,6 @@ public static class DbSeeder
         if (!await db.Clients.AnyAsync(cancellationToken))
         {
             await SeedClientsAsync(db, today, cancellationToken);
-        }
-
-        if (!await db.Risks.AnyAsync(cancellationToken))
-        {
-            await SeedRisksAsync(db, today, cancellationToken);
         }
 
         await SeedDemoOperationsAsync(db, today, cancellationToken);
@@ -71,14 +65,13 @@ public static class DbSeeder
         var roles = await db.Roles.ToDictionaryAsync(r => r.Code, cancellationToken);
         var passwordHash = hasher.Hash(DemoPassword);
 
-        void AddUser(string login, string fullName, RoleCode roleCode, bool twoFactor)
+        void AddUser(string login, string fullName, RoleCode roleCode)
         {
             var user = new User
             {
                 Login = login,
                 FullName = fullName,
                 PasswordHash = passwordHash,
-                TwoFactorEnabled = twoFactor,
                 IsActive = true
             };
 
@@ -90,14 +83,10 @@ public static class DbSeeder
             db.Users.Add(user);
         }
 
-        AddUser("operator1", "Операционист ЦБУ № 1", RoleCode.Operator, false);
-        AddUser("controller1", "Контролёр операционного управления", RoleCode.Controller, true);
-        AddUser("accountant1", "Бухгалтер операционного управления", RoleCode.Accountant, false);
-        AddUser("admin", "Администратор системы", RoleCode.Administrator, true);
-        AddUser("head", "Руководитель – член КУАП", RoleCode.Head, false);
-        AddUser("treasurer", "Специалист казначейства", RoleCode.Treasurer, false);
-        AddUser("riskmanager", "Риск-менеджер", RoleCode.RiskManager, false);
-        AddUser("aml", "Специалист по ПОД/ФТ", RoleCode.AmlOfficer, false);
+        AddUser("employee1", "Сотрудник ЦБУ № 1 Иванова А. П.", RoleCode.Employee);
+        AddUser("employee2", "Сотрудник ЦБУ № 2 Кузнецов Д. С.", RoleCode.Employee);
+        AddUser("admin", "Администратор системы", RoleCode.Administrator);
+        AddUser("head", "Руководитель отделения", RoleCode.Head);
 
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -109,9 +98,9 @@ public static class DbSeeder
             return;
         }
 
-        var validFrom = today.AddMonths(-1);
+        var validFrom = today.AddMonths(-6);
 
-        void Add(string code, string name, string unit, decimal value, string textValue = null)
+        void Add(string code, string name, string unit, decimal value)
         {
             db.Parameters.Add(new Parameter
             {
@@ -119,7 +108,6 @@ public static class DbSeeder
                 Name = name,
                 Unit = unit,
                 Value = value,
-                TextValue = textValue,
                 ValidFrom = validFrom,
                 IsActive = true
             });
@@ -128,37 +116,22 @@ public static class DbSeeder
         Add("TaxRate", "Ставка подоходного налога с процентов", "%", ModelBankData.TaxRatePercent);
         Add("DemandRate", "Ставка до востребования", "% годовых", ModelBankData.DemandRatePercent);
         Add("RefinancingRate", "Ставка рефинансирования", "% годовых", ModelBankData.RefinancingRatePercent);
-        Add("RvsrByn1To3", "РВСР по вкладам в BYN сроком до 3 лет", "% годовых", ModelBankData.RvsrByn1To3Years);
-        Add("RvsrBynOver3", "РВСР по вкладам в BYN сроком свыше 3 лет", "% годовых", ModelBankData.RvsrBynOver3Years);
-        Add("OperatorLimit", "Лимит операциониста без подтверждения", "р.", ModelBankData.OperatorLimit);
-        Add("ControllerLimit", "Лимит контролёра", "р.", ModelBankData.ControllerLimit);
-        Add("AmlThreshold", "Порог обязательного контроля ПОД/ФТ", "р.", ModelBankData.AmlThreshold);
-        Add("ProlongationShare", "Доля пролонгации вкладов", "доля", ModelBankData.ProlongationShare);
-        Add("EarlyWithdrawalShare", "Дневная доля досрочного изъятия отзывных вкладов", "доля", ModelBankData.EarlyWithdrawalShare);
-        Add("OpeningCash", "Запас ликвидности на начало прогноза", "р.", 20_000_000m);
-        Add("MinimumCash", "Минимальный запас ликвидности (КУАП)", "р.", 10_000_000m);
-        Add("ExpectedDailyInflow", "Ожидаемые поступления дня", "р.", 2_000_000m);
-        Add("TransferRate", "Трансфертная ставка размещения ресурсов", "% годовых", ModelBankData.TransferRatePercent);
-        Add("OperatingCost", "Операционные расходы на обслуживание портфеля", "% от объёма", ModelBankData.OperatingCostPercent);
 
         await db.SaveChangesAsync(cancellationToken);
     }
 
     private static async Task SeedProductsAsync(BankDbContext db, DateOnly today, CancellationToken cancellationToken)
     {
-        var validFrom = today.AddMonths(-1);
+        var validFrom = today.AddMonths(-3);
 
         ProductVersion Version(decimal rate, DepositType depositType, bool revocable, int termMonths,
-            CapitalizationMode capitalization, InterestPayoutMode payout, decimal minAmount, decimal minBalance,
-            bool prolongation = false, RateType rateType = RateType.Fixed, decimal spread = 0m, int version = 1,
-            DateOnly? from = null)
+            CapitalizationMode capitalization, InterestPayoutMode payout, decimal minAmount, bool prolongation = false)
         {
             return new ProductVersion
             {
-                Version = version,
+                Version = 1,
                 RatePercent = rate,
-                RateType = rateType,
-                SpreadPercent = spread,
+                RateType = RateType.Fixed,
                 DepositType = depositType,
                 IsRevocable = revocable,
                 AllowsProlongation = prolongation,
@@ -166,17 +139,26 @@ public static class DbSeeder
                 Capitalization = capitalization,
                 InterestPayout = payout,
                 MinAmount = minAmount,
-                MinBalance = minBalance,
+                MinBalance = 0m,
                 DayBase = 0,
-                ValidFrom = from ?? validFrom,
+                ValidFrom = validFrom,
                 IsApproved = true,
-                ApprovedAt = DateTime.UtcNow,
-                RvsrLimit = ModelBankData.RvsrByn1To3Years,
-                Notes = "Модельная версия условий (допущение п. 1.11)."
+                ApprovedAt = DateTime.UtcNow
             };
         }
 
-        var irrevocable = new Product
+        var current = new Product
+        {
+            Code = "BYN-TEKUCH",
+            Name = "Текущий счёт «Удобный»",
+            Kind = ProductKind.CurrentAccount,
+            Currency = "BYN",
+            BalanceAccount = "3012",
+            Description = "Текущий счёт для расчётов, взносов и переводов. Проценты по ставке до востребования."
+        };
+        current.Versions.Add(Version(0.1m, DepositType.None, true, 0, CapitalizationMode.None, InterestPayoutMode.OnDemand, 0m));
+
+        var stable = new Product
         {
             Code = "BYN-BEZOTZ",
             Name = "Безотзывный вклад «Стабильный»",
@@ -185,10 +167,9 @@ public static class DbSeeder
             BalanceAccount = "3014",
             Description = "Срочный безотзывный вклад с ежемесячной капитализацией процентов."
         };
-        irrevocable.Versions.Add(Version(11.8m, DepositType.Term, false, 12, CapitalizationMode.Monthly, InterestPayoutMode.AtEnd, 100m, 0m, true));
-        irrevocable.Versions.Add(Version(12.3m, DepositType.Term, false, 24, CapitalizationMode.Monthly, InterestPayoutMode.AtEnd, 100m, 0m, true, version: 2, from: validFrom.AddDays(1)));
+        stable.Versions.Add(Version(11.8m, DepositType.Term, false, 12, CapitalizationMode.Monthly, InterestPayoutMode.AtEnd, 100m, true));
 
-        var revocable = new Product
+        var free = new Product
         {
             Code = "BYN-OTZYV",
             Name = "Отзывный вклад «Свободный»",
@@ -197,21 +178,9 @@ public static class DbSeeder
             BalanceAccount = "3014",
             Description = "Срочный отзывный вклад с ежемесячной выплатой процентов и перерасчётом по ставке до востребования при досрочном возврате."
         };
-        revocable.Versions.Add(Version(9.0m, DepositType.Term, true, 6, CapitalizationMode.None, InterestPayoutMode.Monthly, 50m, 0m, true));
-        revocable.Versions.Add(Version(8.0m, DepositType.Term, true, 3, CapitalizationMode.None, InterestPayoutMode.Monthly, 50m, 0m, true, version: 2, from: validFrom.AddDays(1)));
+        free.Versions.Add(Version(9.0m, DepositType.Term, true, 6, CapitalizationMode.None, InterestPayoutMode.Monthly, 50m, true));
 
-        var currency = new Product
-        {
-            Code = "USD-VKLAD",
-            Name = "Валютный вклад «Долларовый»",
-            Kind = ProductKind.Deposit,
-            Currency = "USD",
-            BalanceAccount = "3014",
-            Description = "Срочный отзывный вклад в долларах США."
-        };
-        currency.Versions.Add(Version(1.5m, DepositType.Term, true, 12, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, 0m, true));
-
-        var savings = new Product
+        var growth = new Product
         {
             Code = "BYN-NAKOP",
             Name = "Накопительный вклад «Рост»",
@@ -220,37 +189,34 @@ public static class DbSeeder
             BalanceAccount = "3014",
             Description = "Отзывный накопительный вклад: проценты выплачиваются в конце срока, возможна пролонгация."
         };
-        savings.Versions.Add(Version(8.5m, DepositType.Term, true, 3, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, 0m, true, version: 1, from: validFrom));
-        savings.Versions.Add(Version(9.2m, DepositType.Term, true, 6, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, 0m, true, version: 2, from: validFrom.AddDays(1)));
-        savings.Versions.Add(Version(10.4m, DepositType.Term, true, 12, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, 0m, true, version: 3, from: validFrom.AddDays(2)));
+        growth.Versions.Add(Version(8.5m, DepositType.Term, true, 3, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, true));
 
-        var current = new Product
+        var usd = new Product
         {
-            Code = "BYN-TEKUCH",
-            Name = "Текущий счёт физического лица",
-            Kind = ProductKind.CurrentAccount,
-            Currency = "BYN",
-            BalanceAccount = "3012",
-            Description = "Текущий счёт с начислением процентов по ставке до востребования, овердрафтом и блокировками."
+            Code = "USD-VKLAD",
+            Name = "Валютный вклад «Долларовый»",
+            Kind = ProductKind.Deposit,
+            Currency = "USD",
+            BalanceAccount = "3014",
+            Description = "Срочный отзывный вклад в долларах США."
         };
-        current.Versions.Add(Version(0.1m, DepositType.None, true, 0, CapitalizationMode.None, InterestPayoutMode.Monthly, 0m, 0m));
+        usd.Versions.Add(Version(1.5m, DepositType.Term, true, 12, CapitalizationMode.None, InterestPayoutMode.AtEnd, 100m, true));
 
-        db.Products.AddRange(irrevocable, revocable, currency, savings, current);
+        db.Products.AddRange(current, stable, free, growth, usd);
         await db.SaveChangesAsync(cancellationToken);
     }
 
     private static async Task SeedClientsAsync(BankDbContext db, DateOnly today, CancellationToken cancellationToken)
     {
-        var products = await db.Products.Include(p => p.Versions).ToListAsync(cancellationToken);
-        var currentProduct = products.First(p => p.Code == "BYN-TEKUCH");
-        var irrevocable = products.First(p => p.Code == "BYN-BEZOTZ");
-        var revocable = products.First(p => p.Code == "BYN-OTZYV");
-        var usdProduct = products.First(p => p.Code == "USD-VKLAD");
+        var employees = await db.Users
+            .Where(u => u.Login == "employee1" || u.Login == "employee2")
+            .OrderBy(u => u.Login)
+            .ToListAsync(cancellationToken);
 
-        var sequence = 0;
+        var employee1 = employees.FirstOrDefault(u => u.Login == "employee1");
+        var employee2 = employees.FirstOrDefault(u => u.Login == "employee2") ?? employee1;
 
-        Client NewClient(ClientType type, string name, string idNumber, KycRiskLevel risk,
-            IdentificationStatus status = IdentificationStatus.Identified, DateOnly? birthDate = null)
+        Client NewClient(ClientType type, string name, string idNumber, DateOnly? birthDate, User createdBy)
         {
             return new Client
             {
@@ -258,41 +224,37 @@ public static class DbSeeder
                 Name = name,
                 IdNumber = idNumber,
                 BirthDate = birthDate,
-                Phone = "+375 (29) 1" + (1000000 + sequence).ToString().Substring(1, 6),
-                Email = "client" + (++sequence) + "@example.by",
-                Country = "BY",
+                Country = type == ClientType.LegalEntity ? "BY" : "BY",
                 IsResident = true,
-                IdentificationStatus = status,
-                IdentifiedAt = DateTime.UtcNow.AddDays(-200),
-                KycProfile = new KycProfile
-                {
-                    RiskLevel = risk,
-                    ReviewDate = today.AddMonths(-2),
-                    Source = "ЦБУ",
-                    IsActual = true,
-                    UpdatedAt = DateTime.UtcNow.AddMonths(-2)
-                }
+                Phone = "+375 (29) 000-00-00",
+                IdentificationStatus = IdentificationStatus.Identified,
+                IdentifiedAt = DateTime.UtcNow.AddDays(-10),
+                CreatedBy = createdBy?.Id,
+                CreatedAt = DateTime.UtcNow.AddDays(-10)
             };
         }
 
-        var ivanov = NewClient(ClientType.Individual, "Иванов Иван Иванович", "301AB1234", KycRiskLevel.Low, birthDate: new DateOnly(1985, 3, 14));
-        var petrova = NewClient(ClientType.Individual, "Петрова Анна Сергеевна", "302AB5678", KycRiskLevel.Low, birthDate: new DateOnly(1990, 7, 22));
-        var smirnova = NewClient(ClientType.Individual, "Смирнова Ольга Викторовна", "303AB9012", KycRiskLevel.Medium, birthDate: new DateOnly(1978, 11, 5));
-        var sidorova = NewClient(ClientType.Individual, "Сидорова Мария Павловна", "304AB3456", KycRiskLevel.High, birthDate: new DateOnly(1969, 2, 18));
-        var petrov = NewClient(ClientType.Individual, "Петров Дмитрий Олегович", "305AB7890", KycRiskLevel.Low, birthDate: new DateOnly(1992, 9, 30));
-        var vector = NewClient(ClientType.LegalEntity, "ООО «Вектор»", "191234567", KycRiskLevel.Medium);
-        var gorizont = NewClient(ClientType.LegalEntity, "ООО «Горизонт»", "192345678", KycRiskLevel.Low);
-        var kovalev = NewClient(ClientType.Entrepreneur, "ИП Ковалёв А. С.", "193456789", KycRiskLevel.Medium);
+        var ivanov = NewClient(ClientType.Individual, "Иванов Иван Иванович", "301AB1234", new DateOnly(1985, 3, 14), employee1);
+        var petrova = NewClient(ClientType.Individual, "Петрова Анна Сергеевна", "302AB5678", new DateOnly(1990, 7, 22), employee1);
+        var smirnova = NewClient(ClientType.Individual, "Смирнова Ольга Викторовна", "303AB9012", new DateOnly(1978, 11, 5), employee2);
+        var sidorova = NewClient(ClientType.Individual, "Сидорова Мария Павловна", "304AB3456", new DateOnly(1969, 2, 18), employee1);
+        var petrov = NewClient(ClientType.Individual, "Петров Дмитрий Олегович", "305AB7890", new DateOnly(1992, 9, 30), employee2);
+        var vector = NewClient(ClientType.LegalEntity, "ООО «Вектор»", "191234567", null, employee2);
+        var gorizont = NewClient(ClientType.LegalEntity, "ООО «Горизонт»", "192345678", null, employee1);
+        var kovalev = NewClient(ClientType.Entrepreneur, "ИП Ковалёв А. С.", "193456789", null, employee1);
 
         db.Clients.AddRange(ivanov, petrova, smirnova, sidorova, petrov, vector, gorizont, kovalev);
         await db.SaveChangesAsync(cancellationToken);
 
-        var accountSequence = 0;
+        var products = await db.Products.Include(p => p.Versions).ToDictionaryAsync(p => p.Code, cancellationToken);
+        var sequence = 0;
 
-        Account OpenAccount(Client client, Product product, ProductVersion version, decimal balance, decimal overdraft,
-            DateOnly openDate, string contractPrefix, out Contract contract)
+        Account OpenAccount(Client client, string productCode, decimal balance, decimal overdraft,
+            DateOnly openDate, string prefix, User createdBy)
         {
-            accountSequence += 1;
+            sequence += 1;
+            var product = products[productCode];
+            var version = product.Versions.OrderBy(v => v.Version).First();
 
             var account = new Account
             {
@@ -301,47 +263,70 @@ public static class DbSeeder
                 Currency = product.Currency,
                 Balance = balance,
                 OverdraftLimit = overdraft,
-                Status = AccountStatus.Open
+                Status = AccountStatus.Open,
+                CreatedBy = createdBy?.Id,
+                CreatedAt = DateTime.UtcNow.AddDays(-Math.Min(20, Math.Max(0, today.DayNumber - openDate.DayNumber)))
             };
 
             account.Numbers.Add(new AccountNumber
             {
-                Number = AccountNumberGenerator.Build(product.BalanceAccount, client.Id, accountSequence, NumberKind.Previous),
+                Number = AccountNumberGenerator.Build(product.BalanceAccount, client.Id, sequence, NumberKind.Previous),
                 Kind = NumberKind.Previous,
                 ValidFrom = openDate
             });
 
             account.Numbers.Add(new AccountNumber
             {
-                Number = AccountNumberGenerator.Build(product.BalanceAccount, client.Id, accountSequence, NumberKind.Modified),
+                Number = AccountNumberGenerator.Build(product.BalanceAccount, client.Id, sequence, NumberKind.Modified),
                 Kind = NumberKind.Modified,
                 ValidFrom = AccountNumberGenerator.ModifiedNumbersStart
             });
 
-            var termMonths = version.TermMonths > 0 ? version.TermMonths : 12;
             var endDate = product.Kind == ProductKind.CurrentAccount
                 ? DateOnly.MaxValue
-                : SchedulePolicy.AddMonthsClamped(openDate, termMonths);
+                : SchedulePolicy.AddMonthsClamped(openDate, Math.Max(1, version.TermMonths));
 
-            contract = new Contract
+            var contract = new Contract
             {
-                Number = $"{contractPrefix}-{openDate:yyyyMMdd}-{accountSequence:D4}",
+                Number = $"{prefix}-{openDate:yyyyMMdd}-{sequence:D4}",
                 ClientId = client.Id,
                 Account = account,
                 ProductVersionId = version.Id,
                 OpenDate = openDate,
                 EndDate = endDate,
-                Principal = balance,
-                Status = ContractStatus.Active
+                Principal = product.Kind == ProductKind.Deposit ? balance : 0m,
+                Status = ContractStatus.Active,
+                CreatedBy = createdBy?.Id,
+                CreatedAt = account.CreatedAt
             };
 
             db.Accounts.Add(account);
             db.Contracts.Add(contract);
+
+            if (product.Kind == ProductKind.Deposit && balance > 0m)
+            {
+                db.Operations.Add(new Operation
+                {
+                    AccountId = account.Id,
+                    Account = account,
+                    ContractId = contract.Id,
+                    Contract = contract,
+                    DocumentNumber = $"ВКЛ-{openDate:yyyyMMdd}-{sequence:D4}",
+                    Kind = OperationKind.CashIn,
+                    Amount = balance,
+                    Currency = product.Currency,
+                    Status = OperationStatus.Executed,
+                    ExecutedAt = openDate.ToDateTime(new TimeOnly(10, 0), DateTimeKind.Utc),
+                    Description = "Первоначальный взнос по договору вклада",
+                    CreatedBy = createdBy?.Id,
+                    CreatedAt = openDate.ToDateTime(new TimeOnly(10, 0), DateTimeKind.Utc)
+                });
+            }
+
             return account;
         }
 
-        // Пример 1 п. 1.3.1: B = 12 000 р., L = 5 000 р., H = 3 000 р. → D = 14 000 р.
-        var ivanovCurrent = OpenAccount(ivanov, currentProduct, currentProduct.Versions[0], 12_000m, 5_000m, today.AddDays(-300), "ТС", out _);
+        var ivanovCurrent = OpenAccount(ivanov, "BYN-TEKUCH", 12_000m, 5_000m, today.AddDays(-300), "ТС", employee1);
         ivanovCurrent.Holds.Add(new Hold
         {
             Source = HoldSource.Booking,
@@ -354,15 +339,12 @@ public static class DbSeeder
             Comment = "Бронирование под карточную операцию"
         });
 
-        // Пример 2 п. 1.3.1: B = −2 000 р., L = 5 000 р. → D = 3 000 р., Kовд = 40 %.
-        OpenAccount(petrova, currentProduct, currentProduct.Versions[0], -2_000m, 5_000m, today.AddDays(-420), "ТС", out _);
-
-        // Пример 3 п. 1.3.1: B = 3 000 р., арест H = 4 000 р., L = 0 → D = 0.
-        var sidorovaCurrent = OpenAccount(sidorova, currentProduct, currentProduct.Versions[0], 3_000m, 5_000m, today.AddDays(-150), "ТС", out _);
+        OpenAccount(petrova, "BYN-TEKUCH", -2_000m, 5_000m, today.AddDays(-420), "ТС", employee1);
+        var sidorovaCurrent = OpenAccount(sidorova, "BYN-TEKUCH", 3_000m, 5_000m, today.AddDays(-150), "ТС", employee2);
         sidorovaCurrent.Holds.Add(new Hold
         {
-            Source = HoldSource.AisIdo,
-            BasisNumber = "АИС-ИДО-2026-771",
+            Source = HoldSource.Bank,
+            BasisNumber = "АРЕСТ-2026-771",
             BasisAuthority = "Отдел принудительного исполнения",
             Amount = 4_000m,
             IsArrest = true,
@@ -371,52 +353,18 @@ public static class DbSeeder
             Comment = "Постановление об аресте средств"
         });
 
-        OpenAccount(smirnova, currentProduct, currentProduct.Versions[0], 8_400m, 0m, today.AddDays(-90), "ТС", out _);
-        OpenAccount(petrov, currentProduct, currentProduct.Versions[0], 1_250m, 0m, today.AddDays(-60), "ТС", out _);
-        OpenAccount(vector, currentProduct, currentProduct.Versions[0], 45_000m, 20_000m, today.AddDays(-500), "ТС", out _);
-        OpenAccount(gorizont, currentProduct, currentProduct.Versions[0], 62_500m, 0m, today.AddDays(-380), "ТС", out _);
-        OpenAccount(kovalev, currentProduct, currentProduct.Versions[0], 7_300m, 10_000m, today.AddDays(-200), "ТС", out _);
+        OpenAccount(smirnova, "BYN-TEKUCH", 8_400m, 0m, today.AddDays(-90), "ТС", employee2);
+        OpenAccount(petrov, "BYN-TEKUCH", 1_250m, 0m, today.AddDays(-60), "ТС", employee2);
+        OpenAccount(vector, "BYN-TEKUCH", 45_000m, 20_000m, today.AddDays(-500), "ТС", employee2);
+        OpenAccount(gorizont, "BYN-TEKUCH", 62_500m, 0m, today.AddDays(-380), "ТС", employee1);
+        OpenAccount(kovalev, "BYN-TEKUCH", 7_300m, 10_000m, today.AddDays(-200), "ТС", employee1);
 
-        // Вклады: безотзывный (12 мес.), отзывный (6 мес., срок истекает через ~10 дней), валютный.
-        OpenAccount(ivanov, irrevocable, irrevocable.Versions[0], 30_000m, 0m, today.AddDays(-300), "ВКЛ", out _);
-        // Второй вклад Иванова и вклад Петровой — для демонстрации личного кабинета клиента.
-        OpenAccount(ivanov, revocable, revocable.Versions[0], 15_000m, 0m, today.AddDays(-35), "ВКЛ", out _);
-        OpenAccount(petrova, irrevocable, irrevocable.Versions[0], 25_000m, 0m, today.AddDays(-210), "ВКЛ", out _);
-        OpenAccount(smirnova, revocable, revocable.Versions[0], 20_000m, 0m, today.AddDays(-172), "ВКЛ", out _);
-        OpenAccount(kovalev, revocable, revocable.Versions[0], 15_000m, 0m, today.AddDays(-40), "ВКЛ", out _);
-        OpenAccount(petrov, usdProduct, usdProduct.Versions[0], 2_500m, 0m, today.AddDays(-90), "ВКЛ", out _);
-
-        await db.SaveChangesAsync(cancellationToken);
-    }
-
-    private static async Task SeedRisksAsync(BankDbContext db, DateOnly today, CancellationToken cancellationToken)
-    {
-        foreach (var model in ModelBankData.Risks)
-        {
-            var risk = new Risk
-            {
-                Code = model.Code,
-                Event = model.Event,
-                Cause = model.Cause,
-                Consequence = model.Consequence,
-                Category = model.Category,
-                OwnerRole = model.OwnerRole,
-                Status = RiskStatus.Active,
-                Mitigation = model.Mitigation,
-                EarlyIndicator = model.EarlyIndicator
-            };
-
-            risk.Assessments.Add(new RiskAssessment
-            {
-                Date = today,
-                Probability = model.Probability,
-                MoneyImpact = model.MoneyImpact,
-                MitigatedProbability = model.MitigatedProbability,
-                Notes = "Экспертная оценка (таблицы 1.15, 1.17)."
-            });
-
-            db.Risks.Add(risk);
-        }
+        OpenAccount(ivanov, "BYN-BEZOTZ", 30_000m, 0m, today.AddDays(-300), "ВКЛ", employee1);
+        OpenAccount(ivanov, "BYN-OTZYV", 15_000m, 0m, today.AddDays(-35), "ВКЛ", employee1);
+        OpenAccount(petrova, "BYN-BEZOTZ", 25_000m, 0m, today.AddDays(-210), "ВКЛ", employee1);
+        OpenAccount(smirnova, "BYN-OTZYV", 20_000m, 0m, today.AddDays(-172), "ВКЛ", employee2);
+        OpenAccount(kovalev, "BYN-OTZYV", 15_000m, 0m, today.AddDays(-40), "ВКЛ", employee1);
+        OpenAccount(petrov, "USD-VKLAD", 2_500m, 0m, today.AddDays(-90), "ВКЛ", employee2);
 
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -428,85 +376,61 @@ public static class DbSeeder
             return;
         }
 
-        var operatorUser = await db.Users.FirstOrDefaultAsync(u => u.Login == "operator1", cancellationToken);
-        if (operatorUser == null)
-        {
-            return;
-        }
+        var employees = await db.Users
+            .Where(u => u.Login == "employee1" || u.Login == "employee2")
+            .OrderBy(u => u.Login)
+            .ToListAsync(cancellationToken);
+
+        var employee1 = employees.FirstOrDefault(u => u.Login == "employee1");
+        var employee2 = employees.FirstOrDefault(u => u.Login == "employee2") ?? employee1;
 
         var accounts = await db.Accounts
             .Include(a => a.Client)
             .Include(a => a.Contracts)
+            .Where(a => a.BalanceAccount == "3012")
             .ToListAsync(cancellationToken);
 
-        var ivanov = accounts.FirstOrDefault(a => a.Client.Name.Contains("Иванов") && a.BalanceAccount == "3012");
-        var sidorova = accounts.FirstOrDefault(a => a.Client.Name.Contains("Сидорова") && a.BalanceAccount == "3012");
-        var vector = accounts.FirstOrDefault(a => a.Client.Name.Contains("Вектор") && a.BalanceAccount == "3012");
-        var petrova = accounts.FirstOrDefault(a => a.Client.Name.Contains("Петрова") && a.BalanceAccount == "3012");
+        Account Find(string name) =>
+            accounts.FirstOrDefault(a => a.Client.Name.Contains(name, StringComparison.Ordinal));
 
         var sequence = 0;
 
-        Operation NewOperation(Account account, OperationKind kind, decimal amount, OperationStatus status,
-            string description, DateTime createdAt, string sourceNumber)
+        void AddOperation(Account account, OperationKind kind, decimal amount, string description, User author, int hoursAgo)
         {
-            sequence += 1;
-            var document = new OperationDocument
+            if (account == null)
             {
-                Number = sourceNumber,
-                SourceSystem = DocumentSource.Branch,
-                Kind = kind.ToString(),
-                ReceivedAt = createdAt,
-                ClientId = account.ClientId
-            };
+                return;
+            }
 
-            var operation = new Operation
+            sequence += 1;
+            var createdAt = DateTime.UtcNow.AddHours(-hoursAgo);
+
+            db.Operations.Add(new Operation
             {
-                Account = account,
                 AccountId = account.Id,
-                Contract = account.Contracts.FirstOrDefault(),
+                Account = account,
                 ContractId = account.Contracts.FirstOrDefault()?.Id,
-                Document = document,
+                DocumentNumber = $"ПКО-{today:yyyyMMdd}-{sequence:D4}",
                 Kind = kind,
                 Amount = amount,
                 Currency = account.Currency,
-                Status = status,
+                Status = OperationStatus.Executed,
                 Description = description,
-                CreatedBy = operatorUser.Id,
+                CreatedBy = author?.Id,
                 CreatedAt = createdAt,
+                ExecutedAt = createdAt,
                 CheckedBalance = account.Balance,
                 CheckedOverdraft = account.OverdraftLimit,
                 CheckedHolds = 0m,
-                CheckedAvailable = account.Balance + account.OverdraftLimit,
-                IdempotencyKey = Guid.NewGuid().ToString("N")
-            };
-
-            db.Operations.Add(operation);
-            return operation;
+                CheckedAvailable = account.Balance + account.OverdraftLimit
+            });
         }
 
-        if (ivanov != null)
-        {
-            NewOperation(ivanov, OperationKind.CashOut, 8_000m, OperationStatus.OnControl,
-                "Выдача наличных: сумма выше лимита операциониста", DateTime.UtcNow.AddMinutes(-40), $"ПКО-{today:yyyyMMdd}-0001");
-        }
-
-        if (sidorova != null)
-        {
-            NewOperation(sidorova, OperationKind.CashIn, 25_000m, OperationStatus.Suspended,
-                "Взнос наличными: сумма выше порога ПОД/ФТ, клиент высокого риска", DateTime.UtcNow.AddMinutes(-25), $"ПКО-{today:yyyyMMdd}-0002");
-        }
-
-        if (vector != null)
-        {
-            NewOperation(vector, OperationKind.TransferOut, 1_000m, OperationStatus.Draft,
-                "Платёжное поручение № 217", DateTime.UtcNow.AddMinutes(-10), $"ПП-{today:yyyyMMdd}-0217");
-        }
-
-        if (petrova != null)
-        {
-            NewOperation(petrova, OperationKind.CashIn, 2_000m, OperationStatus.Executed,
-                "Пополнение счёта наличными", DateTime.UtcNow.AddHours(-2), $"ПКО-{today:yyyyMMdd}-0003");
-        }
+        AddOperation(Find("Иванов"), OperationKind.CashIn, 2_500m, "Пополнение текущего счёта наличными", employee1, 30);
+        AddOperation(Find("Сидорова"), OperationKind.TransferIn, 1_000m, "Безналичное поступление заработной платы", employee2, 26);
+        AddOperation(Find("Вектор"), OperationKind.TransferOut, 1_000m, "Платёжное поручение № 217", employee2, 20);
+        AddOperation(Find("Петрова"), OperationKind.CashIn, 2_000m, "Пополнение счёта наличными", employee1, 12);
+        AddOperation(Find("Смирнова"), OperationKind.PartialWithdrawal, 500m, "Частичное снятие с текущего счёта", employee2, 4);
 
         await db.SaveChangesAsync(cancellationToken);
     }

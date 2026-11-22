@@ -8,7 +8,7 @@ using FinFlow.Desktop.Infrastructure;
 
 namespace FinFlow.Desktop.ViewModels;
 
-/// <summary>Карточка счёта: остаток, лимит овердрафта, аресты, доступный остаток (требования 1, 3, 4).</summary>
+/// <summary>Карточка счёта: остаток, лимит овердрафта, ограничения, доступный остаток.</summary>
 public class AccountViewModel : ViewModelBase
 {
     private readonly Session _session;
@@ -17,7 +17,7 @@ public class AccountViewModel : ViewModelBase
     private HoldDto _selectedHold;
     private string _holdAmountText;
     private string _holdBasisNumber;
-    private string _holdBasisAuthority = "АИС ИДО";
+    private string _holdBasisAuthority = "Решение банка";
     private bool _holdIsArrest = true;
     private string _holdComment;
     private string _overdraftLimitText;
@@ -213,7 +213,7 @@ public class AccountViewModel : ViewModelBase
         {
             var request = new CreateHoldRequest
             {
-                Source = "AisIdo",
+                Source = "Bank",
                 BasisNumber = HoldBasisNumber?.Trim(),
                 BasisAuthority = HoldBasisAuthority?.Trim(),
                 Amount = amount,

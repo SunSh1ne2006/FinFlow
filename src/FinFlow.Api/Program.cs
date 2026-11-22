@@ -44,7 +44,7 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "FinFlow API",
         Version = "v1",
-        Description = "Сетевая программная система управления вкладами и текущими счетами банка (MVP по п. 1.11 пояснительной записки)."
+        Description = "Управление вкладами и текущими счетами банка: клиенты, счета, вклады, операции, закрытие дня и отчётность."
     });
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -75,6 +75,7 @@ app.UseSwagger();
 app.UseSwaggerUI(options => options.SwaggerEndpoint("/swagger/v1/swagger.json", "FinFlow API v1"));
 
 app.MapControllers();
+app.MapGet("/", () => Results.Redirect("/client/"));
 app.MapGet("/api/health", () => Results.Ok(new
 {
     status = "ok",

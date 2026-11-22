@@ -50,8 +50,6 @@ public class ProductVersion : BaseEntity
     public bool IsApproved { get; set; }
     public Guid? ApprovedBy { get; set; }
     public DateTime? ApprovedAt { get; set; }
-    /// <summary>РВСР на дату утверждения: превышение требует отдельного решения КУАП.</summary>
-    public decimal? RvsrLimit { get; set; }
     public string Notes { get; set; }
 
     /// <summary>Для безотзывного вклада досрочный возврат возможен только с согласия банка.</summary>

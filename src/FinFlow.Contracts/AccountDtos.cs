@@ -13,7 +13,10 @@ public class AccountListItemDto
     public decimal Balance { get; set; }
     public decimal OverdraftLimit { get; set; }
     public string Status { get; set; }
+    public string StatusText { get; set; }
     public string ContractNumber { get; set; }
+    public Guid? ContractId { get; set; }
+    public bool NeedsEarlyReturnConsent { get; set; }
     public string ProductName { get; set; }
     public decimal AvailableBalance { get; set; }
 }
@@ -59,7 +62,7 @@ public class HoldDto
 
 public class CreateHoldRequest
 {
-    public string Source { get; set; } = "AisIdo";
+    public string Source { get; set; } = "Bank";
     public string BasisNumber { get; set; }
     public string BasisAuthority { get; set; }
     public decimal Amount { get; set; }

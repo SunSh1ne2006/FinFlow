@@ -14,7 +14,7 @@ public partial class LoginWindow : Window
     public LoginWindow()
     {
         InitializeComponent();
-        LoginBox.Text = "operator1";
+        LoginBox.Text = "employee1";
         LoginBox.Focus();
     }
 
@@ -27,20 +27,13 @@ public partial class LoginWindow : Window
             var request = new LoginRequest
             {
                 Login = LoginBox.Text.Trim(),
-                Password = PasswordBox.Password,
-                SecondFactor = string.IsNullOrWhiteSpace(SecondFactorBox.Text) ? null : SecondFactorBox.Text.Trim()
+                Password = PasswordBox.Password
             };
 
             var response = await _api.PostAsync<LoginResponse>("api/auth/login", request);
             if (response == null)
             {
                 StatusText.Text = "Сервер вернул пустой ответ.";
-                return;
-            }
-
-            if (response.SecondFactorRequired)
-            {
-                StatusText.Text = "Требуется второй фактор: введите код и повторите вход.";
                 return;
             }
 

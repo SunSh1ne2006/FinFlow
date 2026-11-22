@@ -1,6 +1,5 @@
 using FinFlow.Application.Common;
 using FinFlow.Contracts;
-using FinFlow.Domain.Calculators;
 using FinFlow.Domain.Entities;
 using FinFlow.Domain.Enums;
 
@@ -24,43 +23,8 @@ public static class Mappers
             FullName = user.FullName,
             Roles = roles.Select(ur => ur.Role.Code.ToString()).ToList(),
             RoleNames = roles.Select(ur => ur.Role.Name).ToList(),
-            TwoFactorEnabled = user.TwoFactorEnabled,
             LastLoginAt = user.LastLoginAt,
             IsBlocked = user.IsBlocked
-        };
-    }
-
-    public static KycProfileDto ToDto(this KycProfile kyc, DateOnly today)
-    {
-        if (kyc == null)
-        {
-            return null;
-        }
-
-        return new KycProfileDto
-        {
-            Id = kyc.Id,
-            RiskLevel = kyc.RiskLevel.ToString(),
-            ReviewDate = kyc.ReviewDate,
-            Source = kyc.Source,
-            Notes = kyc.Notes,
-            IsActual = kyc.IsActual,
-            IsOverdue = kyc.IsOverdue(today),
-            UpdatedAt = kyc.UpdatedAt
-        };
-    }
-
-    public static RepresentativeDto ToDto(this Representative representative, DateOnly today)
-    {
-        return new RepresentativeDto
-        {
-            Id = representative.Id,
-            FullName = representative.FullName,
-            IdNumber = representative.IdNumber,
-            Authority = representative.Authority,
-            ValidFrom = representative.ValidFrom,
-            ValidTo = representative.ValidTo,
-            IsValid = representative.IsValidOn(today)
         };
     }
 
@@ -74,14 +38,14 @@ public static class Mappers
             TypeText = client.Type.Text(),
             IdNumber = client.IdNumber,
             IdentificationStatus = client.IdentificationStatus.ToString(),
+            IdentificationStatusText = client.IdentificationStatus.Text(),
             IsIdentified = client.IsIdentified,
-            KycRiskLevel = client.KycProfile?.RiskLevel.ToString(),
             AccountsCount = client.Accounts?.Count ?? 0,
             CreatedAt = client.CreatedAt
         };
     }
 
-    public static ClientDetailsDto ToDetails(this Client client, DateOnly today, IReadOnlyList<AccountListItemDto> accounts)
+    public static ClientDetailsDto ToDetails(this Client client, IReadOnlyList<AccountListItemDto> accounts)
     {
         var listItem = client.ToListItem();
         return new ClientDetailsDto
@@ -92,18 +56,17 @@ public static class Mappers
             TypeText = listItem.TypeText,
             IdNumber = listItem.IdNumber,
             IdentificationStatus = listItem.IdentificationStatus,
+            IdentificationStatusText = listItem.IdentificationStatusText,
             IsIdentified = listItem.IsIdentified,
-            KycRiskLevel = listItem.KycRiskLevel,
             AccountsCount = accounts?.Count ?? listItem.AccountsCount,
             CreatedAt = listItem.CreatedAt,
             Phone = client.Phone,
             Email = client.Email,
             Country = client.Country,
             IsResident = client.IsResident,
+            BirthDate = client.BirthDate,
             IdentifiedAt = client.IdentifiedAt,
             Notes = client.Notes,
-            Kyc = client.KycProfile.ToDto(today),
-            Representatives = client.Representatives?.Select(r => r.ToDto(today)).ToList() ?? new List<RepresentativeDto>(),
             Accounts = accounts ?? Array.Empty<AccountListItemDto>()
         };
     }
@@ -129,7 +92,12 @@ public static class Mappers
             Balance = account.Balance,
             OverdraftLimit = account.OverdraftLimit,
             Status = account.Status.ToString(),
+            StatusText = account.Status.Text(),
             ContractNumber = contract?.Number,
+            ContractId = contract?.Id,
+            NeedsEarlyReturnConsent = contract != null
+                && contract.ProductVersion?.IsRevocable == false
+                && !contract.HasEarlyReturnConsent,
             ProductName = contract?.ProductVersion?.Product?.Name,
             AvailableBalance = availableBalance
         };
@@ -154,6 +122,7 @@ public static class Mappers
             Balance = account.Balance,
             OverdraftLimit = account.OverdraftLimit,
             Status = account.Status.ToString(),
+            StatusText = account.Status.Text(),
             ContractNumber = contract?.Number,
             ProductName = contract?.ProductVersion?.Product?.Name,
             AvailableBalance = snapshot.AvailableBalance,
@@ -236,7 +205,6 @@ public static class Mappers
             ValidFrom = version.ValidFrom,
             IsApproved = version.IsApproved,
             ApprovedAt = version.ApprovedAt,
-            RvsrLimit = version.RvsrLimit,
             RequiresBankConsentForEarlyReturn = version.RequiresBankConsentForEarlyReturn,
             Notes = version.Notes
         };
@@ -317,8 +285,7 @@ public static class Mappers
             ClientName = operation.Account?.Client?.Name,
             ContractId = operation.ContractId,
             ContractNumber = operation.Contract?.Number,
-            DocumentId = operation.DocumentId,
-            DocumentNumber = operation.Document?.Number,
+            DocumentNumber = operation.DocumentNumber,
             Kind = operation.Kind.ToString(),
             KindText = operation.Kind.DisplayName(),
             Amount = operation.Amount,
@@ -329,71 +296,12 @@ public static class Mappers
             CreatedAt = operation.CreatedAt,
             CreatedBy = operation.CreatedBy,
             CreatedByLogin = LoginOf(logins, operation.CreatedBy),
-            ApprovedBy = operation.ApprovedBy,
-            ApprovedByLogin = LoginOf(logins, operation.ApprovedBy),
-            ApprovedAt = operation.ApprovedAt,
             ExecutedAt = operation.ExecutedAt,
             RejectionReason = operation.RejectionReason,
-            Signature = operation.Signature,
             CheckedBalance = operation.CheckedBalance,
             CheckedOverdraft = operation.CheckedOverdraft,
             CheckedHolds = operation.CheckedHolds,
-            CheckedAvailable = operation.CheckedAvailable,
-            CanBeApproved = operation.Status == OperationStatus.OnControl
-        };
-    }
-
-    public static RiskDto ToDto(this Risk risk, DateOnly today)
-    {
-        var assessment = risk.LatestAssessment;
-        var probability = assessment?.Probability ?? 0m;
-        var impact = assessment?.MoneyImpact ?? 0m;
-        var score = RiskCalculator.Evaluate(new RiskInput
-        {
-            Code = risk.Code,
-            Probability = probability,
-            MoneyImpact = impact,
-            MitigatedProbability = assessment?.MitigatedProbability
-        });
-
-        return new RiskDto
-        {
-            Id = risk.Id,
-            Code = risk.Code,
-            Event = risk.Event,
-            Cause = risk.Cause,
-            Consequence = risk.Consequence,
-            Category = risk.Category,
-            OwnerRole = risk.OwnerRole,
-            Status = risk.Status.ToString(),
-            Mitigation = risk.Mitigation,
-            EarlyIndicator = risk.EarlyIndicator,
-            Probability = probability,
-            MoneyImpact = impact,
-            MitigatedProbability = assessment?.MitigatedProbability,
-            ProbabilityScore = score.ProbabilityScore,
-            ImpactScore = score.ImpactScore,
-            Score = score.Score,
-            Zone = score.Zone.ToString(),
-            ZoneText = score.Zone.DisplayName(),
-            Emv = score.Emv,
-            ResidualEmv = score.ResidualEmv,
-            AssessmentDate = assessment?.Date
-        };
-    }
-
-    public static ParameterDto ToDto(this Parameter parameter)
-    {
-        return new ParameterDto
-        {
-            Id = parameter.Id,
-            Code = parameter.Code,
-            Name = parameter.Name,
-            Unit = parameter.Unit,
-            Value = parameter.Value,
-            TextValue = parameter.TextValue,
-            ValidFrom = parameter.ValidFrom,
-            IsActive = parameter.IsActive
+            CheckedAvailable = operation.CheckedAvailable
         };
     }
 
@@ -424,7 +332,6 @@ public static class Mappers
             StartedAt = day.StartedAt,
             ClosedAt = day.ClosedAt,
             AccrualCount = day.AccrualCount,
-            PostingCount = day.PostingCount,
             RejectedOperations = day.RejectedOperations,
             InterestAccrued = day.InterestAccrued,
             TaxWithheld = day.TaxWithheld,

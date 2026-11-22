@@ -12,16 +12,14 @@
                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                         <Button Content="Запустить закрытие дня" Command="{Binding StartCommand}" />
                         <Button Content="Следующий этап" Command="{Binding ContinueCommand}" Style="{StaticResource SecondaryButton}" />
-                        <Button Content="Сверка" Command="{Binding ReconcileCommand}" Style="{StaticResource SecondaryButton}" />
                         <Button Content="Обновить" Command="{Binding LoadCommand}" Style="{StaticResource SecondaryButton}" />
                     </StackPanel>
-                    <TextBlock Text="{Binding ReconciliationCaption}" Margin="0,12,0,0" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>
             </Border>
 
             <Border Style="{StaticResource CardBorder}">
                 <StackPanel>
-                    <TextBlock Text="ИСТОРИЯ ЗАКРЫТИЙ (ТРЕБОВАНИЕ 11)" Style="{StaticResource SectionCaption}" />
+                    <TextBlock Text="ИСТОРИЯ ЗАКРЫТИЙ" Style="{StaticResource SectionCaption}" />
                     <DataGrid ItemsSource="{Binding History}" AutoGenerateColumns="False" IsReadOnly="True" Height="320"
                               HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
                         <DataGrid.Columns>
@@ -31,7 +29,6 @@
                             <DataGridTextColumn Header="Начислено" Binding="{Binding InterestAccrued, StringFormat={}{0:N2}}" Width="110" />
                             <DataGridTextColumn Header="Налог" Binding="{Binding TaxWithheld, StringFormat={}{0:N2}}" Width="100" />
                             <DataGridTextColumn Header="Начислений" Binding="{Binding AccrualCount}" Width="90" />
-                            <DataGridTextColumn Header="Проводок" Binding="{Binding PostingCount}" Width="90" />
                             <DataGridTextColumn Header="Закрыт" Binding="{Binding ClosedAt, StringFormat={}{0:dd.MM.yyyy HH:mm}}" Width="130" />
                         </DataGrid.Columns>
                     </DataGrid>

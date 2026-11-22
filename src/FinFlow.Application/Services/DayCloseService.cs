@@ -11,8 +11,9 @@ using Microsoft.EntityFrameworkCore;
 namespace FinFlow.Application.Services;
 
 /// <summary>
-/// Закрытие операционного дня (п. 1.6.3, требование 12). Этапы фиксируются в OperationalDays,
-/// поэтому повторный запуск продолжает обработку с того же этапа и не создаёт повторных начислений.
+/// Закрытие операционного дня: начисление процентов, капитализация или выплата с удержанием налога,
+/// пролонгация и возврат вкладов. Этапы фиксируются в OperationalDays, поэтому повторный запуск
+/// продолжает обработку с сохранённого этапа и не создаёт повторных начислений.
 /// </summary>
 public class DayCloseService
 {
@@ -21,25 +22,19 @@ public class DayCloseService
     private readonly IAuditWriter _audit;
     private readonly InterestService _interest;
     private readonly TaxService _tax;
-    private readonly ILedgerGateway _ledger;
-    private readonly IEventPublisher _events;
 
     public DayCloseService(
         IBankDbContext db,
         IClock clock,
         IAuditWriter audit,
         InterestService interest,
-        TaxService tax,
-        ILedgerGateway ledger,
-        IEventPublisher events)
+        TaxService tax)
     {
         _db = db;
         _clock = clock;
         _audit = audit;
         _interest = interest;
         _tax = tax;
-        _ledger = ledger;
-        _events = events;
     }
 
     public async Task<OperationalDayDto> GetCurrentAsync(CancellationToken cancellationToken = default)
@@ -96,15 +91,9 @@ public class DayCloseService
 
         try
         {
-            if ((int)day.Stage < (int)DayCloseStage.PendingRejected)
-            {
-                await RejectUnconfirmedAsync(day, date, cancellationToken);
-                day.Stage = DayCloseStage.PendingRejected;
-                await _db.SaveChangesAsync(cancellationToken);
-            }
-
             if ((int)day.Stage < (int)DayCloseStage.AccrualsDone)
             {
+                await RejectDraftsAsync(day, cancellationToken);
                 await AccrueAsync(day, date, cancellationToken);
                 day.Stage = DayCloseStage.AccrualsDone;
                 await _db.SaveChangesAsync(cancellationToken);
@@ -119,27 +108,8 @@ public class DayCloseService
 
             if ((int)day.Stage < (int)DayCloseStage.ContractsDone)
             {
-                await ProcessContractsAsync(day, date, cancellationToken);
+                await ProcessContractsAsync(date, cancellationToken);
                 day.Stage = DayCloseStage.ContractsDone;
-                await _db.SaveChangesAsync(cancellationToken);
-            }
-
-            if ((int)day.Stage < (int)DayCloseStage.PostingsDone)
-            {
-                await PostingsAsync(day, date, cancellationToken);
-                day.Stage = DayCloseStage.PostingsDone;
-                await _db.SaveChangesAsync(cancellationToken);
-            }
-
-            if ((int)day.Stage < (int)DayCloseStage.Reconciled)
-            {
-                var reconciliation = await ReconcileAsync(date, cancellationToken);
-                if (!reconciliation.IsBalanced)
-                {
-                    throw new AppException($"Сверка с главной книгой выявила расхождение {reconciliation.Difference:0.00} р.", 500);
-                }
-
-                day.Stage = DayCloseStage.Reconciled;
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
@@ -150,8 +120,7 @@ public class DayCloseService
             await _db.SaveChangesAsync(cancellationToken);
 
             await _audit.WriteAsync("DayClosed", nameof(OperationalDay), day.Id.ToString(), null,
-                new { day.Date, day.AccrualCount, day.PostingCount, day.InterestAccrued, day.TaxWithheld }, cancellationToken);
-            await _events.PublishAsync("DayClosed", new { day.Date, day.InterestAccrued }, cancellationToken);
+                new { day.Date, day.AccrualCount, day.InterestAccrued, day.TaxWithheld }, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -164,26 +133,24 @@ public class DayCloseService
         return day.ToDto();
     }
 
-    /// <summary>Шаг 1: операции без подтверждения отклоняются (A3 UC04), перенос на следующий день запрещён.</summary>
-    private async Task RejectUnconfirmedAsync(OperationalDay day, DateOnly date, CancellationToken cancellationToken)
+    /// <summary>Незавершённые операции (черновики) отклоняются: перенос на следующий день не допускается.</summary>
+    private async Task RejectDraftsAsync(OperationalDay day, CancellationToken cancellationToken)
     {
         var pending = await _db.Operations
-            .Where(o => o.Status == OperationStatus.Draft
-                     || o.Status == OperationStatus.OnCheck
-                     || o.Status == OperationStatus.OnControl)
+            .Where(o => o.Status == OperationStatus.Draft)
             .ToListAsync(cancellationToken);
 
         foreach (var operation in pending)
         {
             operation.Status = OperationStatus.Rejected;
-            operation.RejectionReason = "Не подтверждена в течение операционного дня (A3 UC04).";
+            operation.RejectionReason = "Не проведена в течение операционного дня.";
         }
 
         day.RejectedOperations = pending.Count;
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Шаг 2: начисление процентов по формуле (1.5) по всем действующим договорам.</summary>
+    /// <summary>Начисление процентов по формуле (1.5) по всем действующим договорам.</summary>
     private async Task AccrueAsync(OperationalDay day, DateOnly date, CancellationToken cancellationToken)
     {
         var contracts = await LoadActiveContractsAsync(cancellationToken);
@@ -205,16 +172,6 @@ public class DayCloseService
                 continue;
             }
 
-            _db.Postings.Add(new Posting
-            {
-                DayId = day.Id,
-                DebitAccount = "7001",
-                CreditAccount = "4001",
-                Currency = contract.Account?.Currency ?? "BYN",
-                Amount = accrual.Amount,
-                Purpose = $"Начисление процентов {date:dd.MM.yyyy} по договору {contract.Number}"
-            });
-
             day.AccrualCount += 1;
             day.InterestAccrued = Money.Round(day.InterestAccrued + accrual.Amount);
         }
@@ -222,7 +179,7 @@ public class DayCloseService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Шаг 3: капитализация или выплата процентов с удержанием налога по формуле (1.8).</summary>
+    /// <summary>Капитализация или выплата процентов с удержанием налога по формуле (1.8).</summary>
     private async Task PayoutsAsync(OperationalDay day, DateOnly date, CancellationToken cancellationToken)
     {
         var contracts = await LoadActiveContractsAsync(cancellationToken);
@@ -298,7 +255,7 @@ public class DayCloseService
         {
             AccountId = account.Id,
             ContractId = contract.Id,
-            Document = NewSystemDocument("ВЫПЛ", OperationKind.InterestPayment, contract.ClientId),
+            DocumentNumber = $"ВЫПЛ-{_clock.UtcNow:yyyyMMddHHmmssfff}",
             Kind = OperationKind.InterestPayment,
             Amount = total,
             Currency = account.Currency,
@@ -308,26 +265,17 @@ public class DayCloseService
             CreatedAt = _clock.UtcNow
         };
 
-        payment.Postings.Add(new Posting
-        {
-            DebitAccount = "4001",
-            CreditAccount = account.BalanceAccount,
-            Currency = account.Currency,
-            Amount = total,
-            Purpose = "Выплата процентов"
-        });
-
         _db.Operations.Add(payment);
 
         if (taxTotal > 0m)
         {
             account.Balance = Money.Round(account.Balance - taxTotal);
 
-            var taxOperation = new Operation
+            _db.Operations.Add(new Operation
             {
                 AccountId = account.Id,
                 ContractId = contract.Id,
-                Document = NewSystemDocument("НАЛОГ", OperationKind.TaxWithholding, contract.ClientId),
+                DocumentNumber = $"НАЛОГ-{_clock.UtcNow:yyyyMMddHHmmssfff}",
                 Kind = OperationKind.TaxWithholding,
                 Amount = taxTotal,
                 Currency = account.Currency,
@@ -335,18 +283,8 @@ public class DayCloseService
                 ExecutedAt = _clock.UtcNow,
                 Description = $"Удержание подоходного налога с процентов по договору {contract.Number}",
                 CreatedAt = _clock.UtcNow
-            };
-
-            taxOperation.Postings.Add(new Posting
-            {
-                DebitAccount = account.BalanceAccount,
-                CreditAccount = "6001",
-                Currency = account.Currency,
-                Amount = taxTotal,
-                Purpose = "Подоходный налог с процентов"
             });
 
-            _db.Operations.Add(taxOperation);
             day.TaxWithheld = Money.Round(day.TaxWithheld + taxTotal);
         }
 
@@ -382,11 +320,11 @@ public class DayCloseService
             accrual.Status = AccrualStatus.Capitalized;
         }
 
-        var operation = new Operation
+        _db.Operations.Add(new Operation
         {
             AccountId = account.Id,
             ContractId = contract.Id,
-            Document = NewSystemDocument("КАП", OperationKind.Capitalization, contract.ClientId),
+            DocumentNumber = $"КАП-{_clock.UtcNow:yyyyMMddHHmmssfff}",
             Kind = OperationKind.Capitalization,
             Amount = total,
             Currency = account.Currency,
@@ -394,23 +332,13 @@ public class DayCloseService
             ExecutedAt = _clock.UtcNow,
             Description = $"Капитализация процентов по договору {contract.Number} на {date:dd.MM.yyyy}",
             CreatedAt = _clock.UtcNow
-        };
-
-        operation.Postings.Add(new Posting
-        {
-            DebitAccount = "7001",
-            CreditAccount = account.BalanceAccount,
-            Currency = account.Currency,
-            Amount = total,
-            Purpose = "Капитализация процентов"
         });
 
-        _db.Operations.Add(operation);
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Шаг 4: пролонгация и возврат вкладов с наступившим сроком.</summary>
-    private async Task ProcessContractsAsync(OperationalDay day, DateOnly date, CancellationToken cancellationToken)
+    /// <summary>Пролонгация и возврат вкладов с наступившим сроком.</summary>
+    private async Task ProcessContractsAsync(DateOnly date, CancellationToken cancellationToken)
     {
         var contracts = await LoadActiveContractsAsync(cancellationToken);
 
@@ -439,11 +367,11 @@ public class DayCloseService
 
                 account.Balance = Money.Round(account.Balance - principal);
 
-                var payout = new Operation
+                _db.Operations.Add(new Operation
                 {
                     AccountId = account.Id,
                     ContractId = contract.Id,
-                    Document = NewSystemDocument("ВОЗВР", OperationKind.CashOut, contract.ClientId),
+                    DocumentNumber = $"ВОЗВР-{_clock.UtcNow:yyyyMMddHHmmssfff}",
                     Kind = OperationKind.CashOut,
                     Amount = principal,
                     Currency = account.Currency,
@@ -451,18 +379,8 @@ public class DayCloseService
                     ExecutedAt = _clock.UtcNow,
                     Description = $"Возврат вклада по окончании срока по договору {contract.Number}",
                     CreatedAt = _clock.UtcNow
-                };
-
-                payout.Postings.Add(new Posting
-                {
-                    DebitAccount = account.BalanceAccount,
-                    CreditAccount = "2020",
-                    Currency = account.Currency,
-                    Amount = principal,
-                    Purpose = "Возврат вклада"
                 });
 
-                _db.Operations.Add(payout);
                 contract.Principal = 0m;
             }
 
@@ -477,68 +395,6 @@ public class DayCloseService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-    }
-
-    /// <summary>Шаг 5: передача проводок в главную книгу АБС.</summary>
-    private async Task PostingsAsync(OperationalDay day, DateOnly date, CancellationToken cancellationToken)
-    {
-        var from = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var to = from.AddDays(1);
-
-        var postings = await _db.Postings
-            .Where(p => p.CreatedAt >= from && p.CreatedAt < to)
-            .ToListAsync(cancellationToken);
-
-        foreach (var posting in postings)
-        {
-            posting.IsLedgerPosted = true;
-        }
-
-        day.PostingCount = postings.Count;
-        await _db.SaveChangesAsync(cancellationToken);
-
-        await _ledger.SendPostingsAsync(postings.Select(p => p.Id).ToList(), cancellationToken);
-    }
-
-    /// <summary>Сверка оборотов с главной книгой (требование 21, UC27).</summary>
-    public async Task<ReconciliationDto> ReconcileAsync(DateOnly date, CancellationToken cancellationToken = default)
-    {
-        var from = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var to = from.AddDays(1);
-
-        var postings = await _db.Postings
-            .Where(p => p.CreatedAt >= from && p.CreatedAt < to)
-            .ToListAsync(cancellationToken);
-
-        var debit = Money.Round(postings.Sum(p => p.Amount));
-        var credit = Money.Round(postings.Sum(p => p.Amount));
-        var (ledgerDebit, ledgerCredit) = await _ledger.GetTurnoverAsync(date, cancellationToken);
-
-        var accrualTotal = await _db.InterestAccruals
-            .Where(a => a.AccrualDate == date)
-            .SumAsync(a => (decimal?)a.Amount, cancellationToken) ?? 0m;
-
-        var taxTotal = await _db.TaxWithholdings
-            .Where(t => t.WithheldAt >= from && t.WithheldAt < to)
-            .SumAsync(t => (decimal?)t.Amount, cancellationToken) ?? 0m;
-
-        var difference = Money.Round(debit - ledgerDebit);
-        var isBalanced = difference == 0m && Money.Round(credit - ledgerCredit) == 0m;
-
-        return new ReconciliationDto
-        {
-            Date = date,
-            DebitTotal = debit,
-            CreditTotal = credit,
-            Difference = difference,
-            PostingCount = postings.Count,
-            AccrualTotal = Money.Round(accrualTotal),
-            TaxTotal = Money.Round(taxTotal),
-            IsBalanced = isBalanced,
-            Message = isBalanced
-                ? $"Сверка выполнена: обороты совпадают, расхождений нет ({postings.Count} проводок)."
-                : $"Расхождение с главной книгой: {difference:0.00} р."
-        };
     }
 
     private async Task<List<Contract>> LoadActiveContractsAsync(CancellationToken cancellationToken) => await _db.Contracts
@@ -564,13 +420,4 @@ public class DayCloseService
             .FirstOrDefaultAsync(a => a.Id == contract.AccountId, cancellationToken)
             ?? throw new NotFoundException("Счёт договора не найден.");
     }
-
-    private OperationDocument NewSystemDocument(string prefix, OperationKind kind, Guid? clientId) => new()
-    {
-        Number = $"{prefix}-{_clock.UtcNow:yyyyMMddHHmmssfff}",
-        SourceSystem = DocumentSource.System,
-        Kind = kind.ToString(),
-        ReceivedAt = _clock.UtcNow,
-        ClientId = clientId
-    };
 }

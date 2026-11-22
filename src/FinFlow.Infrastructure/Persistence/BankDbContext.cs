@@ -5,9 +5,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FinFlow.Infrastructure.Persistence;
 
 /// <summary>
-/// Контекст базы данных (Microsoft SQL Server 2022, EF Core 8).
-/// Конфигурация модели данных соответствует таблице 2.3 пояснительной записки:
-/// уникальные индексы, ограничения CHECK, точность decimal(18,4) для сумм и decimal(9,6) для ставок.
+/// Контекст базы данных (Microsoft SQL Server, EF Core 10).
+/// Уникальные индексы, ограничения CHECK, decimal(18,4) для сумм и decimal(9,6) для ставок.
 /// </summary>
 public class BankDbContext : DbContext, IBankDbContext
 {
@@ -16,8 +15,6 @@ public class BankDbContext : DbContext, IBankDbContext
     }
 
     public DbSet<Client> Clients => Set<Client>();
-    public DbSet<Representative> Representatives => Set<Representative>();
-    public DbSet<KycProfile> KycProfiles => Set<KycProfile>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVersion> ProductVersions => Set<ProductVersion>();
     public DbSet<Account> Accounts => Set<Account>();
@@ -25,15 +22,10 @@ public class BankDbContext : DbContext, IBankDbContext
     public DbSet<Hold> Holds => Set<Hold>();
     public DbSet<Contract> Contracts => Set<Contract>();
     public DbSet<Operation> Operations => Set<Operation>();
-    public DbSet<OperationDocument> Documents => Set<OperationDocument>();
-    public DbSet<Posting> Postings => Set<Posting>();
     public DbSet<InterestAccrual> InterestAccruals => Set<InterestAccrual>();
     public DbSet<TaxWithholding> TaxWithholdings => Set<TaxWithholding>();
     public DbSet<OperationalDay> OperationalDays => Set<OperationalDay>();
-    public DbSet<LiquidityForecast> LiquidityForecasts => Set<LiquidityForecast>();
     public DbSet<Parameter> Parameters => Set<Parameter>();
-    public DbSet<Risk> Risks => Set<Risk>();
-    public DbSet<RiskAssessment> RiskAssessments => Set<RiskAssessment>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
@@ -69,34 +61,6 @@ public class BankDbContext : DbContext, IBankDbContext
             entity.HasIndex(x => new { x.Type, x.IdNumber }).IsUnique();
             entity.HasIndex(x => x.Name);
         });
-
-        modelBuilder.Entity<KycProfile>(entity =>
-        {
-            entity.ToTable("KycProfiles");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.Source).HasMaxLength(20);
-            entity.Property(x => x.Notes).HasMaxLength(1000);
-            entity.Property(x => x.RowVersion).IsRowVersion();
-            entity.HasOne(x => x.Client)
-                .WithOne(x => x.KycProfile)
-                .HasForeignKey<KycProfile>(x => x.ClientId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<Representative>(entity =>
-        {
-            entity.ToTable("Representatives");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.IdNumber).HasMaxLength(50);
-            entity.Property(x => x.Authority).HasMaxLength(300);
-            entity.Property(x => x.RowVersion).IsRowVersion();
-            entity.HasOne(x => x.Client)
-                .WithMany(x => x.Representatives)
-                .HasForeignKey(x => x.ClientId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.ToTable(t => t.HasCheckConstraint("CK_Representatives_Period", "[ValidTo] >= [ValidFrom]"));
-        });
     }
 
     private static void ConfigureProducts(ModelBuilder modelBuilder)
@@ -120,7 +84,6 @@ public class BankDbContext : DbContext, IBankDbContext
             entity.HasKey(x => x.Id);
             entity.Property(x => x.RatePercent).HasPrecision(9, 6);
             entity.Property(x => x.SpreadPercent).HasPrecision(9, 6);
-            entity.Property(x => x.RvsrLimit).HasPrecision(9, 6);
             entity.Property(x => x.MinAmount).HasPrecision(18, 4);
             entity.Property(x => x.MinBalance).HasPrecision(18, 4);
             entity.Property(x => x.Notes).HasMaxLength(500);
@@ -231,31 +194,15 @@ public class BankDbContext : DbContext, IBankDbContext
 
     private static void ConfigureOperations(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<OperationDocument>(entity =>
-        {
-            entity.ToTable("Documents");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.Number).HasMaxLength(50).IsRequired();
-            entity.Property(x => x.ExternalId).HasMaxLength(100);
-            entity.Property(x => x.Kind).HasMaxLength(50);
-            entity.Property(x => x.Payload).HasMaxLength(4000);
-            entity.Property(x => x.RowVersion).IsRowVersion();
-            entity.HasIndex(x => new { x.SourceSystem, x.ExternalId })
-                .IsUnique()
-                .HasFilter("[ExternalId] IS NOT NULL");
-            entity.HasIndex(x => x.Number);
-        });
-
         modelBuilder.Entity<Operation>(entity =>
         {
             entity.ToTable("Operations");
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.DocumentNumber).HasMaxLength(50);
             entity.Property(x => x.Amount).HasPrecision(18, 4);
             entity.Property(x => x.Currency).HasMaxLength(3);
             entity.Property(x => x.Description).HasMaxLength(1000);
             entity.Property(x => x.RejectionReason).HasMaxLength(1000);
-            entity.Property(x => x.Signature).HasMaxLength(300);
-            entity.Property(x => x.IdempotencyKey).HasMaxLength(50);
             entity.Property(x => x.CheckedBalance).HasPrecision(18, 4);
             entity.Property(x => x.CheckedOverdraft).HasPrecision(18, 4);
             entity.Property(x => x.CheckedHolds).HasPrecision(18, 4);
@@ -263,7 +210,7 @@ public class BankDbContext : DbContext, IBankDbContext
             entity.Property(x => x.RowVersion).IsRowVersion();
             entity.HasIndex(x => new { x.AccountId, x.CreatedAt });
             entity.HasIndex(x => x.Status);
-            entity.HasIndex(x => x.IdempotencyKey).IsUnique().HasFilter("[IdempotencyKey] IS NOT NULL");
+            entity.HasIndex(x => x.ReversalOfId);
             entity.HasOne(x => x.Account)
                 .WithMany(x => x.Operations)
                 .HasForeignKey(x => x.AccountId)
@@ -272,35 +219,7 @@ public class BankDbContext : DbContext, IBankDbContext
                 .WithMany(x => x.Operations)
                 .HasForeignKey(x => x.ContractId)
                 .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(x => x.Document)
-                .WithMany()
-                .HasForeignKey(x => x.DocumentId)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.ToTable(t =>
-            {
-                t.HasCheckConstraint("CK_Operations_Amount", "[Amount] > 0");
-                t.HasCheckConstraint("CK_Operations_SelfApproval",
-                    "[ApprovedBy] IS NULL OR [CreatedBy] IS NULL OR [ApprovedBy] <> [CreatedBy]");
-            });
-        });
-
-        modelBuilder.Entity<Posting>(entity =>
-        {
-            entity.ToTable("Postings");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.DebitAccount).HasMaxLength(20).IsRequired();
-            entity.Property(x => x.CreditAccount).HasMaxLength(20).IsRequired();
-            entity.Property(x => x.Currency).HasMaxLength(3);
-            entity.Property(x => x.Amount).HasPrecision(18, 4);
-            entity.Property(x => x.Purpose).HasMaxLength(300);
-            entity.Property(x => x.RowVersion).IsRowVersion();
-            entity.HasIndex(x => x.DayId);
-            entity.HasIndex(x => x.CreatedAt);
-            entity.HasOne(x => x.Operation)
-                .WithMany(x => x.Postings)
-                .HasForeignKey(x => x.OperationId)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.ToTable(t => t.HasCheckConstraint("CK_Postings_Amount", "[Amount] > 0"));
+            entity.ToTable(t => t.HasCheckConstraint("CK_Operations_Amount", "[Amount] > 0"));
         });
     }
 
@@ -354,20 +273,6 @@ public class BankDbContext : DbContext, IBankDbContext
             entity.Property(x => x.RowVersion).IsRowVersion();
             entity.HasIndex(x => x.Date).IsUnique();
         });
-
-        modelBuilder.Entity<LiquidityForecast>(entity =>
-        {
-            entity.ToTable("LiquidityForecasts");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.Inflow).HasPrecision(18, 4);
-            entity.Property(x => x.Outflow).HasPrecision(18, 4);
-            entity.Property(x => x.Cash).HasPrecision(18, 4);
-            entity.Property(x => x.MinimumCash).HasPrecision(18, 4);
-            entity.Property(x => x.Gap).HasPrecision(18, 4);
-            entity.Property(x => x.Scenario).HasMaxLength(20);
-            entity.Property(x => x.RowVersion).IsRowVersion();
-            entity.HasIndex(x => new { x.CalcId, x.Bucket }).IsUnique();
-        });
     }
 
     private static void ConfigureReferences(ModelBuilder modelBuilder)
@@ -385,43 +290,6 @@ public class BankDbContext : DbContext, IBankDbContext
             entity.HasIndex(x => new { x.Code, x.ValidFrom }).IsUnique();
         });
 
-        modelBuilder.Entity<Risk>(entity =>
-        {
-            entity.ToTable("Risks");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.Code).HasMaxLength(10).IsRequired();
-            entity.Property(x => x.Event).HasMaxLength(300);
-            entity.Property(x => x.Cause).HasMaxLength(300);
-            entity.Property(x => x.Consequence).HasMaxLength(300);
-            entity.Property(x => x.Category).HasMaxLength(50);
-            entity.Property(x => x.OwnerRole).HasMaxLength(100);
-            entity.Property(x => x.Mitigation).HasMaxLength(500);
-            entity.Property(x => x.EarlyIndicator).HasMaxLength(300);
-            entity.Property(x => x.RowVersion).IsRowVersion();
-            entity.HasIndex(x => x.Code).IsUnique();
-        });
-
-        modelBuilder.Entity<RiskAssessment>(entity =>
-        {
-            entity.ToTable("RiskAssessments");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.Probability).HasPrecision(9, 6);
-            entity.Property(x => x.MitigatedProbability).HasPrecision(9, 6);
-            entity.Property(x => x.MoneyImpact).HasPrecision(18, 4);
-            entity.Property(x => x.Notes).HasMaxLength(500);
-            entity.Property(x => x.RowVersion).IsRowVersion();
-            entity.HasIndex(x => new { x.RiskId, x.Date });
-            entity.HasOne(x => x.Risk)
-                .WithMany(x => x.Assessments)
-                .HasForeignKey(x => x.RiskId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.ToTable(t =>
-            {
-                t.HasCheckConstraint("CK_RiskAssessments_Probability", "[Probability] >= 0 AND [Probability] <= 1");
-                t.HasCheckConstraint("CK_RiskAssessments_Impact", "[MoneyImpact] >= 0");
-            });
-        });
-
         modelBuilder.Entity<AuditRecord>(entity =>
         {
             entity.ToTable("AuditLog");
@@ -436,6 +304,7 @@ public class BankDbContext : DbContext, IBankDbContext
             entity.Property(x => x.RowVersion).IsRowVersion();
             entity.HasIndex(x => x.At);
             entity.HasIndex(x => new { x.EntityName, x.EntityId });
+            entity.HasIndex(x => new { x.UserId, x.Action });
         });
     }
 

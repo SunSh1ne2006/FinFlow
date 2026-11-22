@@ -2,9 +2,9 @@ using System.Windows.Controls;
 
 namespace FinFlow.Desktop.Views;
 
-public partial class ControlQueueView : UserControl
+public partial class ReportsView : UserControl
 {
-    public ControlQueueView()
+    public ReportsView()
     {
         InitializeComponent();
     }

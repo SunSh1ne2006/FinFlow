@@ -132,7 +132,6 @@ public class ClientOfferTermDto
     public string InterestPayoutText { get; set; }
     public string CapitalizationText { get; set; }
     public decimal IncomePer1000 { get; set; }
-    public bool RateWithinRvsr { get; set; }
 }
 
 public class ClientOfferDto
@@ -158,8 +157,6 @@ public class ClientOffersDto
 {
     public IReadOnlyList<ClientOfferDto> Offers { get; set; } = Array.Empty<ClientOfferDto>();
     public decimal DemandRatePercent { get; set; }
-    public decimal RvsrByn1To3Years { get; set; }
-    public decimal RvsrBynOver3Years { get; set; }
     public DateOnly AsOf { get; set; }
     public string Note { get; set; }
 }

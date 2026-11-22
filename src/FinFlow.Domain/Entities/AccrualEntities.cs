@@ -45,23 +45,8 @@ public class OperationalDay : BaseEntity
     public DateTime? ClosedAt { get; set; }
     public string LastError { get; set; }
     public int AccrualCount { get; set; }
-    public int PostingCount { get; set; }
     public int RejectedOperations { get; set; }
     public decimal InterestAccrued { get; set; }
     public decimal TaxWithheld { get; set; }
     public bool IsClosed => Status == OperationalDayStatus.Closed;
-}
-
-/// <summary>Сохранённый прогноз оттока и разрыва ликвидности по срокам (таблица LiquidityForecasts).</summary>
-public class LiquidityForecast : BaseEntity
-{
-    public Guid CalcId { get; set; }
-    public DateTime CalcDate { get; set; }
-    public DateOnly Bucket { get; set; }
-    public decimal Inflow { get; set; }
-    public decimal Outflow { get; set; }
-    public decimal Cash { get; set; }
-    public decimal MinimumCash { get; set; }
-    public decimal Gap { get; set; }
-    public string Scenario { get; set; }
 }

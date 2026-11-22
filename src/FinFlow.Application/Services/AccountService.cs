@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FinFlow.Application.Services;
 
 /// <summary>
-/// Счета по Плану счетов № 126 (требование 3): прежний и изменённый номер,
-/// ограничения и доступный остаток, лимит овердрафта, закрытие счёта.
+/// Счета по Плану счетов № 126: прежний и изменённый номер, ограничения
+/// и доступный остаток, лимит овердрафта, закрытие счёта.
 /// </summary>
 public class AccountService
 {
@@ -83,7 +83,6 @@ public class AccountService
     public async Task<AccountDetailsDto> OpenAsync(OpenAccountRequest request, CancellationToken cancellationToken = default)
     {
         var client = await _db.Clients
-            .Include(c => c.KycProfile)
             .FirstOrDefaultAsync(c => c.Id == request.ClientId, cancellationToken);
 
         if (client == null)
@@ -94,11 +93,6 @@ public class AccountService
         if (!client.IsIdentified)
         {
             throw new AppException("Открытие счёта невозможно без идентификации клиента (требование 1).", 409);
-        }
-
-        if (client.KycProfile == null || client.KycProfile.IsOverdue(_clock.Today))
-        {
-            throw new AppException("Анкета ПОД/ФТ отсутствует или требует актуализации.", 409);
         }
 
         var product = await _db.Products
@@ -167,41 +161,21 @@ public class AccountService
             var amount = Money.Round(request.InitialAmount);
             account.Balance += amount;
 
-            var document = new OperationDocument
-            {
-                Number = $"ПКО-{_clock.Today:yyyyMMdd}-{sequence:D4}",
-                SourceSystem = DocumentSource.Branch,
-                Kind = "CashIn",
-                ReceivedAt = _clock.UtcNow,
-                ClientId = client.Id
-            };
-
             var operation = new Operation
             {
                 Account = account,
                 Contract = contract,
-                Document = document,
+                DocumentNumber = $"ПКО-{_clock.Today:yyyyMMdd}-{sequence:D4}",
                 Kind = OperationKind.CashIn,
                 Amount = amount,
                 Currency = currency,
                 Status = OperationStatus.Executed,
                 Description = "Первоначальный взнос при открытии счёта",
                 ExecutedAt = _clock.UtcNow,
-                ApprovedBy = _current.UserId,
-                ApprovedAt = _clock.UtcNow,
                 CreatedBy = _current.UserId,
                 CheckedBalance = account.Balance - amount,
                 CheckedAvailable = account.Balance
             };
-
-            operation.Postings.Add(new Posting
-            {
-                DebitAccount = "2020",
-                CreditAccount = account.BalanceAccount,
-                Currency = currency,
-                Amount = amount,
-                Purpose = "Первоначальный взнос"
-            });
 
             _db.Operations.Add(operation);
         }
@@ -292,7 +266,6 @@ public class AccountService
             .ThenInclude(a => a.Numbers)
             .Include(o => o.Account)
             .ThenInclude(a => a.Client)
-            .Include(o => o.Document)
             .Include(o => o.Contract)
             .Where(o => o.AccountId == account.Id)
             .OrderByDescending(o => o.CreatedAt)
@@ -308,7 +281,7 @@ public class AccountService
     private async Task<IReadOnlyDictionary<Guid, string>> LoadLoginsAsync(IEnumerable<Operation> operations, CancellationToken cancellationToken)
     {
         var ids = operations
-            .SelectMany(o => new[] { o.CreatedBy, o.ApprovedBy })
+            .Select(o => o.CreatedBy)
             .Where(id => id.HasValue)
             .Select(id => id.Value)
             .Distinct()

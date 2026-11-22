@@ -16,7 +16,7 @@ public class AuthController : ControllerBase
         _auth = auth;
     }
 
-    /// <summary>Вход в систему. Для контролёра и администратора требуется второй фактор.</summary>
+    /// <summary>Вход сотрудника банка в систему.</summary>
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken) =>

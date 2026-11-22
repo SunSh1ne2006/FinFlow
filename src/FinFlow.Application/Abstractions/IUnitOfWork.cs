@@ -1,7 +1,7 @@
 namespace FinFlow.Application.Abstractions;
 
 /// <summary>
-/// Единица работы: остаток и проводки изменяются в одной транзакции (требование 24).
+/// Единица работы: остаток счёта и операция изменяются в одной транзакции.
 /// </summary>
 public interface IUnitOfWork
 {

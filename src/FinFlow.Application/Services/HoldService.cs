@@ -10,8 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FinFlow.Application.Services;
 
 /// <summary>
-/// Ведение ограничений (требование 6): аресты и приостановления из АИС ИДО,
-/// бронирования и авторизационные блокировки. Сумма действующих ограничений образует H.
+/// Ведение ограничений по счёту: аресты по решению банка, бронирования
+/// и авторизационные блокировки. Сумма действующих ограничений образует H.
 /// </summary>
 public class HoldService
 {
@@ -65,7 +65,7 @@ public class HoldService
         var hold = new Hold
         {
             AccountId = accountId,
-            Source = Parsing.Enum<HoldSource>(request.Source, "источник ограничения", HoldSource.AisIdo),
+            Source = Parsing.Enum<HoldSource>(request.Source, "источник ограничения", HoldSource.Bank),
             BasisNumber = request.BasisNumber,
             BasisAuthority = request.BasisAuthority,
             Amount = Money.Round(request.Amount),

@@ -1,7 +1,5 @@
 using FinFlow.Application.Abstractions;
-using FinFlow.Application.Strategies;
 using FinFlow.Application.Services;
-using FinFlow.Infrastructure.Integrations;
 using FinFlow.Infrastructure.Persistence;
 using FinFlow.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace FinFlow.Infrastructure;
 
-/// <summary>Регистрация слоёв приложения, инфраструктуры и интеграций (модульный монолит п. 2.4.1).</summary>
+/// <summary>Регистрация слоёв приложения и инфраструктуры.</summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddFinFlow(this IServiceCollection services, string connectionString)
@@ -25,11 +23,6 @@ public static class DependencyInjection
         services.AddSingleton<ITokenStore, InMemoryTokenStore>();
         services.AddSingleton<IClientSessionStore, InMemoryClientSessionStore>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
-
-        services.AddScoped<IAisIdoGateway, AisIdoGateway>();
-        services.AddScoped<ILedgerGateway, LedgerGateway>();
-        services.AddScoped<IMsiGateway, MsiGateway>();
-        services.AddScoped<IEventPublisher, LoggingEventPublisher>();
 
         services.AddScoped<AuditService>();
         services.AddScoped<IAuditWriter>(provider => provider.GetRequiredService<AuditService>());
@@ -47,15 +40,8 @@ public static class DependencyInjection
         services.AddScoped<OperationService>();
         services.AddScoped<HoldService>();
         services.AddScoped<DayCloseService>();
-        services.AddScoped<LiquidityService>();
-        services.AddScoped<IReserveStrategy, P80ReserveStrategy>();
-        services.AddScoped<RiskService>();
-        services.AddScoped<MarginService>();
-        services.AddScoped<AmlService>();
-        services.AddScoped<IntegrationService>();
-        services.AddScoped<ReportService>();
+        services.AddScoped<StaffReportService>();
         services.AddScoped<AdminService>();
-        services.AddScoped<MetaService>();
         services.AddScoped<ClientPortalService>();
 
         return services;

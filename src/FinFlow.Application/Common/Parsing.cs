@@ -36,14 +36,6 @@ public static class Parsing
         _ => status.ToString()
     };
 
-    public static string Text(this KycRiskLevel level) => level switch
-    {
-        KycRiskLevel.Low => "Низкий",
-        KycRiskLevel.Medium => "Средний",
-        KycRiskLevel.High => "Высокий",
-        _ => level.ToString()
-    };
-
     public static string Text(this ProductKind kind) => kind switch
     {
         ProductKind.Deposit => "Вклад",
@@ -61,7 +53,6 @@ public static class Parsing
 
     public static string Text(this HoldSource source) => source switch
     {
-        HoldSource.AisIdo => "АИС ИДО",
         HoldSource.Bank => "Решение банка",
         HoldSource.CardAuthorization => "Авторизационная блокировка",
         HoldSource.Booking => "Бронирование",
@@ -104,12 +95,9 @@ public static class Parsing
     public static string Text(this DayCloseStage stage) => stage switch
     {
         DayCloseStage.Started => "Начало закрытия",
-        DayCloseStage.PendingRejected => "Отклонение неподтверждённых операций",
         DayCloseStage.AccrualsDone => "Начисление процентов",
         DayCloseStage.PayoutsDone => "Капитализация и выплата процентов",
         DayCloseStage.ContractsDone => "Пролонгация и возврат вкладов",
-        DayCloseStage.PostingsDone => "Формирование проводок",
-        DayCloseStage.Reconciled => "Сверка с главной книгой",
         DayCloseStage.Completed => "Закрытие завершено",
         _ => stage.ToString()
     };

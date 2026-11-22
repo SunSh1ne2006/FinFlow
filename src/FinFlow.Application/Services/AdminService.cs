@@ -4,7 +4,6 @@ using FinFlow.Application.Mapping;
 using FinFlow.Contracts;
 using FinFlow.Domain.Entities;
 using FinFlow.Domain.Enums;
-using FinFlow.Domain.Reference;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinFlow.Application.Services;
@@ -54,7 +53,7 @@ public class AdminService
             throw new ConflictException($"Пользователь {login} уже существует.");
         }
 
-        var roleCode = Parsing.Enum<RoleCode>(request.Role, "роль", RoleCode.Operator);
+        var roleCode = Parsing.Enum<RoleCode>(request.Role, "роль", RoleCode.Employee);
         var role = await _db.Roles.FirstOrDefaultAsync(r => r.Code == roleCode, cancellationToken);
         if (role == null)
         {
@@ -66,7 +65,6 @@ public class AdminService
             Login = login,
             FullName = string.IsNullOrWhiteSpace(request.FullName) ? login : request.FullName.Trim(),
             PasswordHash = _hasher.Hash(request.Password),
-            TwoFactorEnabled = request.TwoFactorEnabled,
             IsActive = true
         };
 
@@ -104,15 +102,4 @@ public class AdminService
 
         return user.ToDto();
     }
-
-    public IReadOnlyList<RoleInfoDto> Roles() => ModelBankData.Roles
-        .Select(r => new RoleInfoDto
-        {
-            Code = (int)r.Code,
-            CodeName = r.Code.ToString(),
-            Name = r.Name,
-            Client = r.Client,
-            Description = r.Description
-        })
-        .ToList();
 }

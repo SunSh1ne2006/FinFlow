@@ -1,0 +1,47 @@
+<UserControl x:Class="FinFlow.Desktop.Views.ReportsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource CardBorder}">
+            <StackPanel>
+                <TextBlock Text="ОТЧЁТ О РАБОТЕ СОТРУДНИКОВ" Style="{StaticResource SectionCaption}" />
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="С" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <DatePicker Width="140" SelectedDate="{Binding FromDate}" />
+                    <TextBlock Text="по" VerticalAlignment="Center" Margin="10,0,6,0" />
+                    <DatePicker Width="140" SelectedDate="{Binding ToDate}" />
+                    <Button Content="Сформировать" Command="{Binding LoadCommand}" Margin="10,0,0,0" />
+                    <Button Content="За месяц" Command="{Binding LastMonthCommand}" Style="{StaticResource SecondaryButton}" />
+                    <Button Content="За сегодня" Command="{Binding TodayCommand}" Style="{StaticResource SecondaryButton}" />
+                </StackPanel>
+                <TextBlock Text="{Binding PeriodCaption}" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding TotalsCaption}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource DangerBrush}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <DataGrid Grid.Row="1" ItemsSource="{Binding Rows}" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Сотрудник" Binding="{Binding FullName}" Width="*" />
+                <DataGridTextColumn Header="Логин" Binding="{Binding Login}" Width="110" />
+                <DataGridTextColumn Header="Клиентов" Binding="{Binding ClientsRegistered}" Width="90" />
+                <DataGridTextColumn Header="Счетов" Binding="{Binding AccountsOpened}" Width="85" />
+                <DataGridTextColumn Header="Вкладов" Binding="{Binding DepositsOpened}" Width="85" />
+                <DataGridTextColumn Header="Сумма вкладов" Binding="{Binding DepositAmount, StringFormat={}{0:N2}}" Width="130" />
+                <DataGridTextColumn Header="Операций" Binding="{Binding OperationsCount}" Width="90" />
+                <DataGridTextColumn Header="Оборот операций" Binding="{Binding OperationsAmount, StringFormat={}{0:N2}}" Width="140" />
+                <DataGridTextColumn Header="Закрытий дня" Binding="{Binding DayCloses}" Width="105" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <TextBlock Grid.Row="2" Foreground="{StaticResource MutedBrush}" FontSize="11" TextWrapping="Wrap"
+                   Text="Отчёт формируется по журналу действий: регистрация клиентов, открытие счетов и вкладов, проведённые операции и закрытия операционного дня." />
+    </Grid>
+</UserControl>

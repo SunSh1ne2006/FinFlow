@@ -11,7 +11,6 @@ public class User : BaseEntity
     public string FullName { get; set; }
     public bool IsBlocked { get; set; }
     public int FailedAttempts { get; set; }
-    public bool TwoFactorEnabled { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
 
@@ -20,7 +19,7 @@ public class User : BaseEntity
     public IEnumerable<RoleCode> RoleCodes => UserRoles.Where(ur => ur.Role != null).Select(ur => ur.Role.Code);
 }
 
-/// <summary>Роль системы. Восемь ролей п. 1.5 (НФТ-9).</summary>
+/// <summary>Роль сотрудника банка: сотрудник, администратор или руководитель.</summary>
 public class Role : BaseEntity
 {
     public RoleCode Code { get; set; }

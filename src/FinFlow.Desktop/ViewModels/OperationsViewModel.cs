@@ -8,7 +8,7 @@ using FinFlow.Desktop.Infrastructure;
 
 namespace FinFlow.Desktop.ViewModels;
 
-/// <summary>Ввод и сопровождение операций по счёту (требования 5, 6, 7, 9, 12).</summary>
+/// <summary>Проведение операций по счёту и сторнирование ошибочных операций.</summary>
 public class OperationsViewModel : ViewModelBase
 {
     private readonly Session _session;
@@ -30,17 +30,14 @@ public class OperationsViewModel : ViewModelBase
             new("TransferIn", "Безналичное поступление"),
             new("CashOut", "Выдача наличными"),
             new("TransferOut", "Безналичное списание"),
-            new("PartialWithdrawal", "Частичное изъятие вклада"),
-            new("EarlyReturn", "Досрочный возврат вклада"),
-            new("InterestPayment", "Выплата процентов"),
-            new("Capitalization", "Капитализация процентов")
+            new("PartialWithdrawal", "Частичное изъятие"),
+            new("EarlyReturn", "Досрочный возврат вклада")
         };
         SelectedKind = KindOptions[0];
         Operations = new ObservableCollection<OperationDto>();
 
         LoadCommand = new AsyncRelayCommand(LoadAsync, () => !string.IsNullOrWhiteSpace(AccountNumber));
-        CreateCommand = new AsyncRelayCommand(CreateAsync, () => !string.IsNullOrWhiteSpace(AccountNumber));
-        SubmitCommand = new AsyncRelayCommand(SubmitAsync, () => _selectedOperation != null);
+        PostCommand = new AsyncRelayCommand(PostAsync, () => !string.IsNullOrWhiteSpace(AccountNumber) && !IsBusy);
         RefreshOperationCommand = new AsyncRelayCommand(LoadAsync, () => !string.IsNullOrWhiteSpace(AccountNumber));
         ReverseCommand = new AsyncRelayCommand(ReverseAsync, () => _selectedOperation != null);
     }
@@ -119,8 +116,7 @@ public class OperationsViewModel : ViewModelBase
     }
 
     public ICommand LoadCommand { get; }
-    public ICommand CreateCommand { get; }
-    public ICommand SubmitCommand { get; }
+    public ICommand PostCommand { get; }
     public ICommand RefreshOperationCommand { get; }
     public ICommand ReverseCommand { get; }
 
@@ -157,7 +153,7 @@ public class OperationsViewModel : ViewModelBase
         });
     }
 
-    private async Task CreateAsync()
+    private async Task PostAsync()
     {
         if (Account == null)
         {
@@ -170,47 +166,41 @@ public class OperationsViewModel : ViewModelBase
             return;
         }
 
-        if (!AccountViewModel.TryParseAmount(AmountText, out var amount) || amount <= 0)
+        decimal amount;
+        if (SelectedKind.Code == "EarlyReturn")
+        {
+            amount = 1m;
+        }
+        else if (!AccountViewModel.TryParseAmount(AmountText, out amount) || amount <= 0)
         {
             StatusMessage = "Укажите положительную сумму операции.";
             return;
         }
 
+        var account = Account;
         await RunAsync(async () =>
         {
             var request = new CreateOperationRequest
             {
-                AccountId = Account.Id,
-                ContractId = Account.Contract?.Id,
+                AccountId = account.Id,
+                ContractId = account.Contract?.Id,
                 Kind = SelectedKind.Code,
                 Amount = amount,
                 Description = string.IsNullOrWhiteSpace(Description) ? SelectedKind.Name : Description.Trim(),
-                DocumentNumber = string.IsNullOrWhiteSpace(DocumentNumber) ? null : DocumentNumber.Trim(),
-                SourceSystem = "Branch"
+                DocumentNumber = string.IsNullOrWhiteSpace(DocumentNumber) ? null : DocumentNumber.Trim()
             };
 
-            var created = await _session.Api.PostAsync<OperationDto>("api/operations", request);
-            Operations.Insert(0, created);
-            SelectedOperation = created;
-            StatusMessage = $"Операция создана (черновик). {WorkflowHint(created)}";
+            var posted = await _session.Api.PostAsync<OperationDto>("api/operations", request);
+            Operations.Insert(0, posted);
+            SelectedOperation = posted;
             AmountText = null;
             Description = null;
-        });
-    }
 
-    private async Task SubmitAsync()
-    {
-        if (SelectedOperation == null)
-        {
-            return;
-        }
+            StatusMessage = posted.Status == "Executed"
+                ? $"Операция исполнена: {posted.Amount:N2} {posted.Currency}. Остаток обновлён."
+                : $"Операция отклонена: {posted.RejectionReason}";
 
-        await RunAsync(async () =>
-        {
-            var result = await _session.Api.PostAsync<OperationDto>($"api/operations/{SelectedOperation.Id}/submit");
-            SelectedOperation = result;
-            await ReloadListAsync();
-            StatusMessage = $"Операция отправлена: {result.StatusText}. {WorkflowHint(result)}";
+            await LoadAsync();
         });
     }
 
@@ -223,7 +213,7 @@ public class OperationsViewModel : ViewModelBase
 
         if (string.IsNullOrWhiteSpace(ReasonText))
         {
-            StatusMessage = "Для сторнирования укажите причину (бизнес-правило 13).";
+            StatusMessage = "Для сторнирования укажите причину.";
             return;
         }
 
@@ -233,38 +223,9 @@ public class OperationsViewModel : ViewModelBase
                 $"api/operations/{SelectedOperation.Id}/reverse",
                 new ReverseRequest { Reason = ReasonText.Trim() });
             SelectedOperation = result;
-            await ReloadListAsync();
+            await LoadAsync();
             ReasonText = null;
-            StatusMessage = "Операция сторнирована; исходная запись сохранена без изменений.";
+            StatusMessage = "Операция сторнирована; исходная запись сохранена в журнале.";
         });
-    }
-
-    private async Task ReloadListAsync()
-    {
-        if (Account == null)
-        {
-            return;
-        }
-
-        var operations = await _session.Api.GetAsync<List<OperationDto>>("api/operations?accountId=" + Account.Id + "&take=100");
-        Operations.Clear();
-        foreach (var operation in operations)
-        {
-            Operations.Add(operation);
-        }
-    }
-
-    private string WorkflowHint(OperationDto operation)
-    {
-        return operation.Status switch
-        {
-            "OnCheck" => "Операция ожидает подтверждения контролёра.",
-            "OnControl" => "Операция на контроле: требуется подтверждение контролёра.",
-            "Suspended" => "Операция приостановлена до выяснения признаков ПОД/ФТ.",
-            "Executed" => "Операция исполнена, остаток и проводки обновлены.",
-            "Approved" => "Операция одобрена.",
-            "Rejected" => "Операция отклонена: " + (operation.RejectionReason ?? "причина не указана"),
-            _ => string.Empty
-        };
     }
 }

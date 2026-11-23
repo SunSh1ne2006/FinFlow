@@ -13,8 +13,11 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddFinFlow(this IServiceCollection services, string connectionString)
     {
+        // Операции и сторнирование выполняются в явной транзакции (IUnitOfWork).
+        // SqlServerRetryingExecutionStrategy несовместима с BeginTransaction,
+        // поэтому повторные попытки на уровне подключения не включаются.
         services.AddDbContext<BankDbContext>(options =>
-            options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(3)));
+            options.UseSqlServer(connectionString));
 
         services.AddScoped<IBankDbContext>(provider => provider.GetRequiredService<BankDbContext>());
         services.AddScoped<IUnitOfWork, UnitOfWork>();

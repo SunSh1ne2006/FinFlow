@@ -29,3 +29,14 @@ jobs:
       - name: Smoke test
         shell: pwsh
         run: ./scripts/smoke.ps1 -StartApi -Configuration Release
+
+      - name: Smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log
+          path: |
+            smoke.log
+            smoke-api.out.log
+            smoke-api.err.log
+          if-no-files-found: ignore

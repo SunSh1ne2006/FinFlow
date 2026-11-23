@@ -17,3 +17,7 @@ TestResults/
 Thumbs.db
 .idea/
 .vscode/
+
+# Артефакты smoke-теста
+smoke.log
+smoke-api.*.log

@@ -11,6 +11,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $script:failures = 0
 $script:apiProcess = $null
+$script:logPath = Join-Path $repoRoot 'smoke.log'
+Remove-Item $script:logPath -ErrorAction SilentlyContinue
 $script:employee = $null
 $script:head = $null
 $script:admin = $null
@@ -19,13 +21,18 @@ $script:contractId = $null
 $script:accountId = $null
 $script:operationId = $null
 
+function Write-Log([string]$line) {
+    Add-Content -LiteralPath $script:logPath -Value $line -Encoding UTF8
+    Write-Host $line
+}
+
 function Write-Ok([string]$name) {
-    Write-Host ("[ ok ] " + $name) -ForegroundColor Green
+    Write-Log ("[ ok ] " + $name)
 }
 
 function Write-Fail([string]$name, [string]$message) {
     $script:failures++
-    Write-Host ("[FAIL] " + $name + " -> " + $message) -ForegroundColor Red
+    Write-Log ("[FAIL] " + $name + " -> " + $message)
 }
 
 function Test-Case([string]$name, [scriptblock]$body) {
@@ -90,11 +97,11 @@ function Wait-Api([int]$timeoutSeconds = 240) {
 }
 
 function Start-Api {
-    $outLog = Join-Path ([System.IO.Path]::GetTempPath()) 'finflow-api.out.log'
-    $errLog = Join-Path ([System.IO.Path]::GetTempPath()) 'finflow-api.err.log'
+    $outLog = Join-Path $repoRoot 'smoke-api.out.log'
+    $errLog = Join-Path $repoRoot 'smoke-api.err.log'
     Remove-Item $outLog, $errLog -ErrorAction SilentlyContinue
 
-    Write-Host ("Запуск API: dotnet run --project src/FinFlow.Api -c " + $Configuration + " --urls " + $BaseUrl)
+    Write-Log ("Запуск API: dotnet run --project src/FinFlow.Api -c " + $Configuration + " --urls " + $BaseUrl)
     $script:apiProcess = Start-Process -FilePath 'dotnet' `
         -ArgumentList @('run', '--project', 'src/FinFlow.Api', '-c', $Configuration, '--urls', $BaseUrl) `
         -WorkingDirectory $repoRoot -PassThru -NoNewWindow `
@@ -104,9 +111,9 @@ function Start-Api {
         Wait-Api
     }
     catch {
-        Write-Host '--- журнал API ---' -ForegroundColor Yellow
-        if (Test-Path $outLog) { Get-Content $outLog -Tail 100 }
-        if (Test-Path $errLog) { Get-Content $errLog -Tail 100 }
+        Write-Log '--- журнал API ---'
+        if (Test-Path $outLog) { Get-Content $outLog -Tail 150 | ForEach-Object { Write-Log $_ } }
+        if (Test-Path $errLog) { Get-Content $errLog -Tail 150 | ForEach-Object { Write-Log $_ } }
         throw
     }
 }
@@ -263,9 +270,9 @@ finally {
 }
 
 if ($script:failures -gt 0) {
-    Write-Host ("Проверок не пройдено: " + $script:failures) -ForegroundColor Red
+    Write-Log ("Проверок не пройдено: " + $script:failures)
     exit 1
 }
 
-Write-Host 'Все проверки пройдены.' -ForegroundColor Green
+Write-Log 'Все проверки пройдены.'
 exit 0

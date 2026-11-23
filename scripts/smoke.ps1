@@ -118,6 +118,16 @@ function Start-Api {
     }
 }
 
+function Dump-ApiLog {
+    foreach ($file in @('smoke-api.out.log', 'smoke-api.err.log')) {
+        $path = Join-Path $repoRoot $file
+        if (Test-Path $path) {
+            Write-Log ("--- " + $file + " ---")
+            Get-Content $path -Tail 200 | ForEach-Object { Write-Log $_ }
+        }
+    }
+}
+
 function Stop-Api {
     if ($null -eq $script:apiProcess) { return }
     & taskkill /PID $script:apiProcess.Id /T /F 2>$null | Out-Null
@@ -271,6 +281,7 @@ finally {
 
 if ($script:failures -gt 0) {
     Write-Log ("Проверок не пройдено: " + $script:failures)
+    Dump-ApiLog
     exit 1
 }
 

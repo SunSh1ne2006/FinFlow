@@ -121,9 +121,30 @@ function Start-Api {
 function Dump-ApiLog {
     foreach ($file in @('smoke-api.out.log', 'smoke-api.err.log')) {
         $path = Join-Path $repoRoot $file
-        if (Test-Path $path) {
-            Write-Log ("--- " + $file + " ---")
-            Get-Content $path -Tail 200 | ForEach-Object { Write-Log $_ }
+        if (-not (Test-Path $path)) { continue }
+        $lines = @(Get-Content $path)
+        Write-Log ("--- " + $file + " (" + $lines.Count + " строк) ---")
+        $marks = @()
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match 'Error Number|DbUpdateException|SqlException|InvalidOperationException') {
+                $marks += $i
+            }
+        }
+        if ($marks.Count -eq 0) {
+            $lines | Select-Object -Last 80 | ForEach-Object { Write-Log $_ }
+            continue
+        }
+        $shown = @{}
+        foreach ($mark in ($marks | Select-Object -Last 3)) {
+            $from = [Math]::Max(0, $mark - 30)
+            $to = [Math]::Min($lines.Count - 1, $mark + 12)
+            for ($i = $from; $i -le $to; $i++) {
+                if (-not $shown.ContainsKey($i)) {
+                    $shown[$i] = $true
+                    Write-Log $lines[$i]
+                }
+            }
+            Write-Log '...'
         }
     }
 }

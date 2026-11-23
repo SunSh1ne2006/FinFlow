@@ -296,7 +296,7 @@ POST /api/portal/auth/login
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
-| GET | `/api/health` | состояние сервера |
+| GET | `/api/health` | состояние сервера и доступность базы данных (`database`: `ok` / `unavailable`) |
 | GET | `/` | перенаправление на `/client/` |
 | GET | `/swagger` | Swagger UI |
 

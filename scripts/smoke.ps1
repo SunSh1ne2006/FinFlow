@@ -176,6 +176,7 @@ try {
     Test-Case 'сервер отвечает /api/health' {
         $health = Invoke-RestMethod -Uri ($BaseUrl.TrimEnd('/') + '/api/health')
         if ($health.status -ne 'ok') { throw 'status != ok' }
+        if ($health.database -ne 'ok') { throw ("база данных недоступна: " + $health.database) }
     }
 
     Test-Case 'личный кабинет отдаёт страницу /client/' {

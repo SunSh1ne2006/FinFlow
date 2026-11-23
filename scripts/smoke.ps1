@@ -20,6 +20,7 @@ $script:clientId = $null
 $script:contractId = $null
 $script:accountId = $null
 $script:operationId = $null
+$script:currentAccountId = $null
 
 function Write-Log([string]$line) {
     Add-Content -LiteralPath $script:logPath -Value $line -Encoding UTF8
@@ -227,6 +228,38 @@ try {
         }
         if ($rejected.status -ne 'Rejected') { throw ("статус " + $rejected.status) }
         if (-not $rejected.rejectionReason) { throw 'нет причины отклонения' }
+        $script:currentAccountId = $currentAccount.id
+    }
+
+    Test-Case 'овердрафт, ограничения и закрытие счёта' {
+        $accountId = $script:currentAccountId
+
+        $overdraft = Invoke-Api -Method Put -Path ('/api/accounts/' + $accountId + '/overdraft') -Headers $script:employee -Body @{
+            overdraftLimit = 500
+        }
+        if ([decimal]$overdraft.availableBalance -ne 500) { throw ("доступно после овердрафта " + $overdraft.availableBalance) }
+
+        $hold = Invoke-Api -Method Post -Path ('/api/accounts/' + $accountId + '/holds') -Headers $script:employee -Body @{
+            source    = 'Bank'
+            basisNumber = 'SMOKE-2026-1'
+            amount    = 100
+            isArrest  = $false
+            comment   = 'Smoke test hold'
+        }
+        $afterHold = Invoke-Api -Method Get -Path ('/api/accounts/' + $accountId) -Headers $script:employee
+        if ([decimal]$afterHold.availableBalance -ne 400) { throw ("доступно с ограничением " + $afterHold.availableBalance) }
+
+        Invoke-Api -Method Post -Path ('/api/accounts/holds/' + $hold.id + '/release') -Headers $script:employee | Out-Null
+        $afterRelease = Invoke-Api -Method Get -Path ('/api/accounts/' + $accountId) -Headers $script:employee
+        if ([decimal]$afterRelease.availableBalance -ne 500) { throw ("доступно после снятия " + $afterRelease.availableBalance) }
+
+        $closedOverdraft = Invoke-Api -Method Put -Path ('/api/accounts/' + $accountId + '/overdraft') -Headers $script:employee -Body @{
+            overdraftLimit = 0
+        }
+        if ([decimal]$closedOverdraft.availableBalance -ne 0) { throw 'остаток не обнулён' }
+
+        $closed = Invoke-Api -Method Post -Path ('/api/accounts/' + $accountId + '/close') -Headers $script:employee
+        if ($closed.status -ne 'Closed') { throw ("статус счёта " + $closed.status) }
     }
 
     Test-Case 'взнос наличными по вкладу' {

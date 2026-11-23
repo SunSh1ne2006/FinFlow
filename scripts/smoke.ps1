@@ -208,6 +208,27 @@ try {
         $script:accountId = $contract.accountId
     }
 
+    Test-Case 'отклонение операции при недостатке средств' {
+        $currentProducts = Invoke-Api -Method Get -Path '/api/products?kind=CurrentAccount' -Headers $script:employee
+        $current = $currentProducts | Where-Object { $_.code -eq 'BYN-TEKUCH' } | Select-Object -First 1
+        if ($null -eq $current) { throw 'продукт BYN-TEKUCH не найден' }
+        $currentDetails = Invoke-Api -Method Get -Path ('/api/products/' + $current.id) -Headers $script:employee
+        $currentVersion = $currentDetails.versions | Where-Object { $_.isApproved } | Select-Object -First 1
+        $currentAccount = Invoke-Api -Method Post -Path '/api/accounts' -Headers $script:employee -Body @{
+            clientId      = $script:clientId
+            productId     = $current.id
+            currency      = 'BYN'
+            initialAmount = 0
+        }
+        $rejected = Invoke-Api -Method Post -Path '/api/operations' -Headers $script:employee -Body @{
+            accountId = $currentAccount.id
+            kind      = 'CashOut'
+            amount    = 100
+        }
+        if ($rejected.status -ne 'Rejected') { throw ("статус " + $rejected.status) }
+        if (-not $rejected.rejectionReason) { throw 'нет причины отклонения' }
+    }
+
     Test-Case 'взнос наличными по вкладу' {
         $operation = Invoke-Api -Method Post -Path '/api/operations' -Headers $script:employee -Body @{
             accountId   = $script:accountId
@@ -256,6 +277,8 @@ try {
     Test-Case 'закрытие операционного дня' {
         $day = Invoke-Api -Method Post -Path '/api/dayclose/start' -Headers $script:employee
         if ($day.stage -ne 'Completed') { throw ("этап " + $day.stage) }
+        if ($day.accrualCount -lt 1) { throw 'начисления не созданы' }
+        if ([decimal]$day.interestAccrued -le 0) { throw 'сумма начислений не положительна' }
         $history = Invoke-Api -Method Get -Path '/api/dayclose/history?take=5' -Headers $script:employee
         if (@($history).Count -lt 1) { throw 'история закрытий пуста' }
     }

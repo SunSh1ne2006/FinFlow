@@ -76,12 +76,26 @@ app.UseSwaggerUI(options => options.SwaggerEndpoint("/swagger/v1/swagger.json", 
 
 app.MapControllers();
 app.MapGet("/", () => Results.Redirect("/client/"));
-app.MapGet("/api/health", () => Results.Ok(new
+app.MapGet("/api/health", async (FinFlow.Infrastructure.Persistence.BankDbContext db) =>
 {
-    status = "ok",
-    version = "1.0.0",
-    serverTime = DateTime.UtcNow
-}));
+    bool databaseAvailable;
+    try
+    {
+        databaseAvailable = await db.Database.CanConnectAsync();
+    }
+    catch
+    {
+        databaseAvailable = false;
+    }
+
+    return Results.Ok(new
+    {
+        status = "ok",
+        database = databaseAvailable ? "ok" : "unavailable",
+        version = "2.0.0",
+        serverTime = DateTime.UtcNow
+    });
+});
 
 try
 {

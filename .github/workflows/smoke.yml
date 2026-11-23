@@ -1,0 +1,52 @@
+name: smoke
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Check LocalDB
+        shell: pwsh
+        run: sqllocaldb info
+
+      - name: Restore
+        run: dotnet restore FinFlow.sln
+
+      - name: Build
+        run: dotnet build FinFlow.sln -c Release --no-restore
+
+      - name: Smoke test
+        shell: pwsh
+        run: ./scripts/smoke.ps1 -StartApi -Configuration Release
+
+      - name: Annotate smoke log
+        if: failure()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path smoke.log)) { Write-Host 'no smoke.log'; return }
+          $log = Get-Content smoke.log -Raw
+          if ($log.Length -gt 60000) { $log = $log.Substring($log.Length - 60000) }
+          $escaped = $log.Replace('%', '%25').Replace("`r", '').Replace("`n", '%0A')
+          Write-Host ("::error::" + $escaped)
+
+      - name: Smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log
+          path: |
+            smoke.log
+            smoke-api.out.log
+            smoke-api.err.log
+          if-no-files-found: ignore

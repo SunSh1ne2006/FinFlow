@@ -1,4 +1,5 @@
 using System;
+using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows;
 using FinFlow.Contracts;
@@ -15,6 +16,7 @@ public partial class LoginWindow : Window
     {
         InitializeComponent();
         LoginBox.Text = "employee1";
+        ServerText.Text = "Сервер приложений: " + ApiSettings.BaseUrl;
         LoginBox.Focus();
     }
 
@@ -51,11 +53,22 @@ public partial class LoginWindow : Window
         }
         catch (ApiException exception)
         {
-            StatusText.Text = exception.Message;
+            StatusText.Text = exception.StatusCode == 401
+                ? "Неверный логин или пароль. Для демонстрационных учётных записей пароль — FinFlow#2026!"
+                : exception.Message;
+        }
+        catch (HttpRequestException exception)
+        {
+            StatusText.Text = "Сервер приложений недоступен по адресу " + ApiSettings.BaseUrl
+                              + ". Запустите проект FinFlow.Api и повторите вход. (" + exception.Message + ")";
+        }
+        catch (TaskCanceledException)
+        {
+            StatusText.Text = "Сервер приложений не ответил за отведённое время: " + ApiSettings.BaseUrl;
         }
         catch (Exception exception)
         {
-            StatusText.Text = "Сервер недоступен: " + exception.Message;
+            StatusText.Text = "Не удалось выполнить вход: " + exception.Message;
         }
         finally
         {

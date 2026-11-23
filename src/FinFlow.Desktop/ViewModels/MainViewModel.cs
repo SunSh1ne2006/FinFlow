@@ -24,7 +24,7 @@ public class MainViewModel : ObservableObject
 
         if (!CanServeClients)
         {
-            _selectedTabIndex = CanAdminister ? 5 : 4;
+            _selectedTabIndex = CanReport ? 4 : 5;
         }
     }
 
@@ -48,9 +48,9 @@ public class MainViewModel : ObservableObject
 
     public bool CanServeClients => Session.IsInRole("Employee");
 
-    public bool CanCloseDay => Session.IsInRole("Employee") || Session.IsInRole("Administrator");
+    public bool CanCloseDay => Session.IsInRole("Employee");
 
-    public bool CanReport => Session.IsInRole("Head") || Session.IsInRole("Administrator");
+    public bool CanReport => Session.IsInRole("Head");
 
     public bool CanAdminister => Session.IsInRole("Administrator");
 
@@ -64,6 +64,16 @@ public class MainViewModel : ObservableObject
         if (CanReport)
         {
             await Reports.RefreshAsync();
+        }
+
+        if (CanCloseDay)
+        {
+            await DayClose.RefreshAsync();
+        }
+
+        if (CanAdminister)
+        {
+            await Admin.RefreshAsync();
         }
     }
 

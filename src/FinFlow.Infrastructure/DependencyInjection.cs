@@ -13,8 +13,11 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddFinFlow(this IServiceCollection services, string connectionString)
     {
+        // Операции и сторнирование выполняются в явной транзакции (IUnitOfWork).
+        // SqlServerRetryingExecutionStrategy несовместима с BeginTransaction,
+        // поэтому повторные попытки на уровне подключения не включаются.
         services.AddDbContext<BankDbContext>(options =>
-            options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(3)));
+            options.UseSqlServer(connectionString));
 
         services.AddScoped<IBankDbContext>(provider => provider.GetRequiredService<BankDbContext>());
         services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -55,9 +58,75 @@ public static class DependencyInjection
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
         await db.Database.EnsureCreatedAsync();
+        await RecreateLegacySchemaAsync(db, logger);
         await EnsureClientPortalSchemaAsync(db, logger);
         await DbSeeder.SeedAsync(db, hasher);
         logger?.LogInformation("База данных FinFlow готова: схема создана, начальные данные загружены.");
+    }
+
+    /// <summary>
+    /// EnsureCreated не изменяет существующую базу, поэтому база, созданная прежней
+    /// версией системы, остаётся со старой схемой и ломает работу приложения.
+    /// Схема сверяется с моделью EF Core; при расхождении демонстрационная база
+    /// пересоздаётся (данные прежней версии всё равно несовместимы с моделью).
+    /// </summary>
+    private static async Task RecreateLegacySchemaAsync(BankDbContext db, ILogger logger)
+    {
+        if (!db.Database.IsSqlServer())
+        {
+            return;
+        }
+
+        if (await SchemaMatchesModelAsync(db))
+        {
+            return;
+        }
+
+        logger?.LogWarning(
+            "Схема базы FinFlow не соответствует текущей модели данных. База пересоздаётся с демонстрационными данными.");
+
+        await db.Database.EnsureDeletedAsync();
+        await db.Database.EnsureCreatedAsync();
+    }
+
+    /// <summary>Проверка, что в базе есть все таблицы и колонки, которые ожидает модель.</summary>
+    private static async Task<bool> SchemaMatchesModelAsync(BankDbContext db)
+    {
+        var tables = (await db.Database
+                .SqlQueryRaw<string>("SELECT t.name AS [Value] FROM sys.tables AS t")
+                .ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var columns = (await db.Database
+                .SqlQueryRaw<string>(
+                    "SELECT t.name + '.' + c.name AS [Value] FROM sys.tables AS t INNER JOIN sys.columns AS c ON c.object_id = t.object_id")
+                .ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entity in db.Model.GetEntityTypes())
+        {
+            var table = entity.GetTableName();
+            if (string.IsNullOrWhiteSpace(table))
+            {
+                continue;
+            }
+
+            if (!tables.Contains(table))
+            {
+                return false;
+            }
+
+            foreach (var property in entity.GetProperties())
+            {
+                var column = property.GetColumnName();
+                if (!string.IsNullOrWhiteSpace(column) && !columns.Contains(table + "." + column))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

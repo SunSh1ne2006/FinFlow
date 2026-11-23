@@ -2,6 +2,7 @@ using System.Text.Json;
 using FinFlow.Application.Common;
 using FinFlow.Domain.Common;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
 
 namespace FinFlow.Api.Common;
 
@@ -35,6 +36,18 @@ public class ExceptionMiddleware
         catch (DomainException exception)
         {
             await WriteAsync(context, 409, exception.Message);
+        }
+        catch (SqlException exception)
+        {
+            _logger.LogError(exception, "Ошибка базы данных при обработке {Path}", context.Request.Path);
+
+            var unavailable = exception.Number is 2 or 53 or 4060 or 18456 or 40615;
+            await WriteAsync(
+                context,
+                unavailable ? 503 : 500,
+                unavailable
+                    ? "База данных недоступна. Проверьте, что SQL Server (LocalDB) запущен, и строку подключения ConnectionStrings:Default."
+                    : "Ошибка базы данных. Подробности записаны в журнал сервера.");
         }
         catch (Exception exception)
         {

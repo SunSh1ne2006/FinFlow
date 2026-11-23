@@ -41,6 +41,8 @@
                 <Button x:Name="LoginButton" Content="Войти" Height="38" Click="OnLoginClick" />
                 <TextBlock x:Name="StatusText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap"
                            Margin="0,12,0,0" FontSize="12" />
+                <TextBlock x:Name="ServerText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                           Margin="0,6,0,0" FontSize="11" />
 
                 <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,18,0,0" TextWrapping="Wrap"
                            Text="Все действия пользователей фиксируются в журнале аудита (только добавление, срок хранения не менее 5 лет)." />

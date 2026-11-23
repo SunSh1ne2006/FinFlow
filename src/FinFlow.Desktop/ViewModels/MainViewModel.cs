@@ -65,6 +65,16 @@ public class MainViewModel : ObservableObject
         {
             await Reports.RefreshAsync();
         }
+
+        if (CanCloseDay)
+        {
+            await DayClose.RefreshAsync();
+        }
+
+        if (CanAdminister)
+        {
+            await Admin.RefreshAsync();
+        }
     }
 
     public async Task RefreshTabAsync(int index)

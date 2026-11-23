@@ -119,32 +119,27 @@ function Start-Api {
 }
 
 function Dump-ApiLog {
+    $patterns = 'SqlException|conflicted|FOREIGN KEY|DbUpdateException|InvalidOperationException|Execution strategy|Failed executing|Error Number|INSERT INTO|UPDATE \[|at FinFlow\.'
     foreach ($file in @('smoke-api.out.log', 'smoke-api.err.log')) {
         $path = Join-Path $repoRoot $file
         if (-not (Test-Path $path)) { continue }
+        Write-Log ("--- " + $file + " ---")
         $lines = @(Get-Content $path)
-        Write-Log ("--- " + $file + " (" + $lines.Count + " строк) ---")
-        $marks = @()
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match 'Error Number|DbUpdateException|SqlException|InvalidOperationException') {
-                $marks += $i
+        $found = 0
+        foreach ($line in $lines) {
+            if ($line -match $patterns) {
+                $text = $line.Trim()
+                if ($text.Length -gt 300) { $text = $text.Substring(0, 300) }
+                Write-Log $text
+                $found++
             }
         }
-        if ($marks.Count -eq 0) {
-            $lines | Select-Object -Last 80 | ForEach-Object { Write-Log $_ }
-            continue
-        }
-        $shown = @{}
-        foreach ($mark in ($marks | Select-Object -Last 3)) {
-            $from = [Math]::Max(0, $mark - 30)
-            $to = [Math]::Min($lines.Count - 1, $mark + 12)
-            for ($i = $from; $i -le $to; $i++) {
-                if (-not $shown.ContainsKey($i)) {
-                    $shown[$i] = $true
-                    Write-Log $lines[$i]
-                }
+        if ($found -eq 0) {
+            $lines | Select-Object -Last 40 | ForEach-Object {
+                $text = $_.Trim()
+                if ($text.Length -gt 300) { $text = $text.Substring(0, 300) }
+                Write-Log $text
             }
-            Write-Log '...'
         }
     }
 }

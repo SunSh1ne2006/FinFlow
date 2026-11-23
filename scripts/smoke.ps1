@@ -71,9 +71,28 @@ function Invoke-Api {
         return Invoke-RestMethod @request
     }
     catch {
+        $status = 0
+        if ($null -ne $_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
         $detail = $_.ErrorDetails.Message
         if (-not $detail) { $detail = $_.Exception.Message }
-        throw ("{0} {1}: {2}" -f $Method, $Path, $detail)
+        throw ("{0} {1}: HTTP {2} {3}" -f $Method, $Path, $status, $detail)
+    }
+}
+
+function Invoke-ApiStatus {
+    param(
+        [string]$Method,
+        [string]$Path,
+        [hashtable]$Headers
+    )
+
+    try {
+        Invoke-Api -Method $Method -Path $Path -Headers $Headers | Out-Null
+        return 200
+    }
+    catch {
+        if ($_.Exception.Message -match 'HTTP (\d{3})') { return [int]$Matches[1] }
+        throw
     }
 }
 
@@ -332,6 +351,29 @@ try {
         if (@($users).Count -lt 4) { throw ("пользователей " + @($users).Count) }
         $audit = Invoke-Api -Method Get -Path '/api/audit?page=1&pageSize=10' -Headers $script:admin
         if ($audit.total -lt 1) { throw 'журнал аудита пуст' }
+    }
+
+    Test-Case 'разграничение ролей руководителя и администратора' {
+        if ($null -eq $script:head) { $script:head = New-StaffSession 'head' 'FinFlow#2026!' }
+        if ($null -eq $script:admin) { $script:admin = New-StaffSession 'admin' 'FinFlow#2026!' }
+
+        $adminReport = Invoke-ApiStatus -Method Get -Path ("/api/reports/staff?from=" + (Get-Date).AddDays(-30).ToString('yyyy-MM-dd') + "&to=" + (Get-Date).ToString('yyyy-MM-dd')) -Headers $script:admin
+        if ($adminReport -ne 403) { throw ("администратор получил отчёт: код " + $adminReport) }
+
+        $headAudit = Invoke-ApiStatus -Method Get -Path '/api/audit?page=1&pageSize=5' -Headers $script:head
+        if ($headAudit -ne 403) { throw ("руководитель получил журнал аудита: код " + $headAudit) }
+
+        $headUsers = Invoke-ApiStatus -Method Get -Path '/api/users' -Headers $script:head
+        if ($headUsers -ne 403) { throw ("руководитель получил список сотрудников: код " + $headUsers) }
+
+        $headClients = Invoke-ApiStatus -Method Get -Path '/api/clients?page=1&pageSize=5' -Headers $script:head
+        if ($headClients -ne 403) { throw ("руководитель получил клиентов: код " + $headClients) }
+
+        $adminDayClose = Invoke-ApiStatus -Method Post -Path '/api/dayclose/start' -Headers $script:admin
+        if ($adminDayClose -ne 403) { throw ("администратор запустил закрытие дня: код " + $adminDayClose) }
+
+        $adminClients = Invoke-ApiStatus -Method Get -Path '/api/clients?page=1&pageSize=5' -Headers $script:admin
+        if ($adminClients -ne 403) { throw ("администратор получил клиентов: код " + $adminClients) }
     }
 
     Test-Case 'личный кабинет клиента: вход и вклады' {

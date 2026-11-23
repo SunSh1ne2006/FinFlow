@@ -7,7 +7,7 @@ namespace FinFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/dayclose")]
-[Authorize(Roles = "Employee,Administrator")]
+[Authorize(Roles = "Employee")]
 public class DayCloseController : ControllerBase
 {
     private readonly DayCloseService _dayClose;

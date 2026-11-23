@@ -37,13 +37,15 @@ public static class DbSeeder
 
     private static async Task SeedRolesAsync(BankDbContext db, CancellationToken cancellationToken)
     {
-        if (await db.Roles.AnyAsync(cancellationToken))
-        {
-            return;
-        }
+        var existing = await db.Roles.Select(r => r.Code).ToListAsync(cancellationToken);
 
         foreach (var role in ModelBankData.Roles)
         {
+            if (existing.Contains(role.Code))
+            {
+                continue;
+            }
+
             db.Roles.Add(new Role
             {
                 Code = role.Code,
@@ -55,38 +57,65 @@ public static class DbSeeder
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Демонстрационные учётные записи. Заполнение идемпотентно: отсутствующие
+    /// пользователи и роли создаются, пароль демо-учёток приводится к DemoPassword,
+    /// если в базе остался хеш от прежней версии данных.
+    /// </summary>
     private static async Task SeedUsersAsync(BankDbContext db, IPasswordHasher hasher, CancellationToken cancellationToken)
     {
-        if (await db.Users.AnyAsync(cancellationToken))
-        {
-            return;
-        }
-
         var roles = await db.Roles.ToDictionaryAsync(r => r.Code, cancellationToken);
         var passwordHash = hasher.Hash(DemoPassword);
 
-        void AddUser(string login, string fullName, RoleCode roleCode)
+        var demoUsers = new (string Login, string FullName, RoleCode Role)[]
         {
-            var user = new User
-            {
-                Login = login,
-                FullName = fullName,
-                PasswordHash = passwordHash,
-                IsActive = true
-            };
+            ("employee1", "Сотрудник ЦБУ № 1 Иванова А. П.", RoleCode.Employee),
+            ("employee2", "Сотрудник ЦБУ № 2 Кузнецов Д. С.", RoleCode.Employee),
+            ("admin", "Администратор системы", RoleCode.Administrator),
+            ("head", "Руководитель отделения", RoleCode.Head)
+        };
 
-            if (roles.TryGetValue(roleCode, out var role))
+        foreach (var (login, fullName, roleCode) in demoUsers)
+        {
+            var user = await db.Users
+                .Include(u => u.UserRoles)
+                .FirstOrDefaultAsync(u => u.Login == login, cancellationToken);
+
+            if (user == null)
+            {
+                user = new User
+                {
+                    Login = login,
+                    FullName = fullName,
+                    PasswordHash = passwordHash,
+                    IsActive = true
+                };
+
+                if (roles.TryGetValue(roleCode, out var newRole))
+                {
+                    user.UserRoles.Add(new UserRole { User = user, Role = newRole });
+                }
+
+                db.Users.Add(user);
+                continue;
+            }
+
+            if (!hasher.Verify(DemoPassword, user.PasswordHash))
+            {
+                // База заполнена прежней версией демо-данных: возвращаем пароль из документации.
+                user.PasswordHash = passwordHash;
+                user.IsBlocked = false;
+                user.FailedAttempts = 0;
+            }
+
+            user.IsActive = true;
+
+            if (roles.TryGetValue(roleCode, out var role)
+                && user.UserRoles.All(ur => ur.RoleId != role.Id))
             {
                 user.UserRoles.Add(new UserRole { User = user, Role = role });
             }
-
-            db.Users.Add(user);
         }
-
-        AddUser("employee1", "Сотрудник ЦБУ № 1 Иванова А. П.", RoleCode.Employee);
-        AddUser("employee2", "Сотрудник ЦБУ № 2 Кузнецов Д. С.", RoleCode.Employee);
-        AddUser("admin", "Администратор системы", RoleCode.Administrator);
-        AddUser("head", "Руководитель отделения", RoleCode.Head);
 
         await db.SaveChangesAsync(cancellationToken);
     }

@@ -7,7 +7,7 @@ namespace FinFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/operations")]
-[Authorize(Roles = "Employee,Administrator")]
+[Authorize(Roles = "Employee")]
 public class OperationsController : ControllerBase
 {
     private readonly OperationService _operations;

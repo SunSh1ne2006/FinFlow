@@ -7,7 +7,7 @@ namespace FinFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/accounts")]
-[Authorize(Roles = "Employee,Administrator")]
+[Authorize(Roles = "Employee")]
 public class AccountsController : ControllerBase
 {
     private readonly AccountService _accounts;
@@ -47,12 +47,12 @@ public class AccountsController : ControllerBase
         Ok(await _accounts.OpenAsync(request, cancellationToken));
 
     [HttpPut("{id:guid}/overdraft")]
-    [Authorize(Roles = "Employee,Administrator")]
+    [Authorize(Roles = "Employee")]
     public async Task<ActionResult<AccountDetailsDto>> SetOverdraft(Guid id, [FromBody] SetOverdraftRequest request, CancellationToken cancellationToken) =>
         Ok(await _accounts.SetOverdraftAsync(id, request.OverdraftLimit, cancellationToken));
 
     [HttpPost("{id:guid}/holds")]
-    [Authorize(Roles = "Employee,Administrator")]
+    [Authorize(Roles = "Employee")]
     public async Task<ActionResult<HoldDto>> AddHold(Guid id, [FromBody] CreateHoldRequest request, CancellationToken cancellationToken) =>
         Ok(await _holds.AddAsync(id, request, cancellationToken));
 
@@ -61,12 +61,12 @@ public class AccountsController : ControllerBase
         Ok(await _holds.ListActiveAsync(id, cancellationToken));
 
     [HttpPost("holds/{holdId:guid}/release")]
-    [Authorize(Roles = "Employee,Administrator")]
+    [Authorize(Roles = "Employee")]
     public async Task<ActionResult<HoldDto>> ReleaseHold(Guid holdId, CancellationToken cancellationToken) =>
         Ok(await _holds.ReleaseAsync(holdId, cancellationToken));
 
     [HttpPost("{id:guid}/close")]
-    [Authorize(Roles = "Employee,Administrator")]
+    [Authorize(Roles = "Employee")]
     public async Task<ActionResult<AccountDetailsDto>> Close(Guid id, CancellationToken cancellationToken) =>
         Ok(await _accounts.CloseAsync(id, cancellationToken));
 }

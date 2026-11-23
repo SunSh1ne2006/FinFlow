@@ -65,7 +65,7 @@ public class InterestService
     }
 
     /// <summary>Начисление за день. Если начисление уже существует — возвращается оно (идемпотентность).</summary>
-    public async Task<InterestAccrual> AccrueDayAsync(Contract contract, DateOnly date, Guid? dayId, CancellationToken cancellationToken = default)
+    public async Task<InterestAccrual?> AccrueDayAsync(Contract contract, DateOnly date, Guid? dayId, CancellationToken cancellationToken = default)
     {
         var existing = await _db.InterestAccruals
             .FirstOrDefaultAsync(a => a.ContractId == contract.Id && a.AccrualDate == date, cancellationToken);
@@ -77,8 +77,18 @@ public class InterestService
 
         var rate = await ResolveRateAsync(contract, date, cancellationToken);
         var baseAmount = AccrualBase(contract);
+        if (baseAmount <= 0m)
+        {
+            // Нулевой или отрицательный остаток (овердрафт) процентов не приносит.
+            return null;
+        }
+
         var yearDays = contract.ProductVersion?.ResolveDayBase(date) ?? InterestCalculator.YearDays(date);
         var amount = InterestCalculator.AccrueFlat(baseAmount, rate, 1, yearDays);
+        if (amount <= 0m)
+        {
+            return null;
+        }
 
         var accrual = new InterestAccrual
         {

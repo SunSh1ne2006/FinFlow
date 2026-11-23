@@ -167,7 +167,7 @@ public class DayCloseService
             }
 
             var accrual = await _interest.AccrueDayAsync(contract, date, day.Id, cancellationToken);
-            if (accrual.Amount <= 0m)
+            if (accrual == null || accrual.Amount <= 0m)
             {
                 continue;
             }
